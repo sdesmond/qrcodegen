@@ -5,7 +5,7 @@ Single-container Flask app behind Cloudflare Tunnel.
 
 **Stack:** Flask + qrcode + python-barcode + Pillow + Gunicorn.
 **Tests:** pytest, run `python3 -m pytest`.
-**Branch:** `master` (not `main`).
+**Branch:** `main`.
 
 ---
 
