@@ -1,22 +1,15 @@
 <!--
 Sync Impact Report
 ==================
-Version change: (unversioned template) → 1.0.0
-Modified principles: n/a (initial ratification; all placeholders replaced)
-Added principles:
-  - I. Stateless & Self-Contained
-  - II. Stable Public Contracts
-  - III. Whitelist Validation & Bounded Resources
-  - IV. Single Rendering Path
-  - V. Tested Behavior
-  - VI. Structured Observability
-Added sections:
-  - Operational Constraints
-  - Development Workflow
-  - Governance
+Version change: 1.0.0 → 1.0.1 (PATCH: clarification)
+Modified principles:
+  - II. Stable Public Contracts — removed the `lnklab.us` example; that domain is not a
+    live consumer. The rule itself is unchanged.
+Consumer impact (Principle II): none; no contract changed.
+Added sections: none
 Removed sections: none
 Templates: not modified (dependent templates read this file at runtime)
-Follow-up TODOs: none (CLAUDE.md branch reference corrected to `main`)
+Follow-up TODOs: none (CLAUDE.md "Consumers" section removed to match)
 -->
 
 # qrcodegen Constitution
@@ -36,8 +29,7 @@ responses deterministic and edge-cacheable, and removes an entire class of data-
 
 ### II. Stable Public Contracts
 
-`GET /api/qr` is a public embedding contract consumed by external services (notably
-`lnklab.us`). Its response shape—raw image bytes, an `image/*` content type, and
+`GET /api/qr` is a public embedding contract consumed by external services. Its response shape—raw image bytes, an `image/*` content type, and
 long-lived public cache headers—MUST NOT change without coordinating with consumers.
 Existing query parameters MUST NOT be removed or have their meaning changed; new parameters
 MUST be optional with safe defaults. The same rule applies to the JSON envelope returned by
@@ -126,4 +118,4 @@ runtime development guidance file and MUST remain consistent with it.
   Principles. Deviations MUST be recorded with justification in the plan's Complexity Tracking
   section, or the constitution amended first.
 
-**Version**: 1.0.0 | **Ratified**: 2026-09-27 | **Last Amended**: 2026-09-27
+**Version**: 1.0.1 | **Ratified**: 2026-09-27 | **Last Amended**: 2026-09-27

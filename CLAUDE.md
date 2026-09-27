@@ -74,9 +74,3 @@ Tunnel ingress for `qrcode.chrisrmiller.com` points at the host port.
 - **Cloudflare can cache 4xx responses** — if a route looks broken from
   the public URL but works hitting the container directly, suspect edge
   cache before assuming a code bug.
-
-## Consumers
-
-- `lnklab.us` (URL shortener) embeds QRs via `GET /api/qr` with the
-  short URL as `data`. Don't break the GET response shape (raw image
-  bytes, image/* content type) without coordinating.
