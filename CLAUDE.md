@@ -26,9 +26,10 @@ endpoint, and the response is deterministic + cacheable so Cloudflare
 serves repeats from the edge.
 
 `/api/qr` query params: `data` (required), `size`, `format` (`png`|`svg`),
-`margin`, `fg_color`, `bg_color`, `ec_level`. All other params have safe
-defaults; invalid values fall back rather than 4xx (except missing `data`
-which 400s).
+`margin`, `fg_color`, `bg_color`, `ec_level`, and the shape styles
+`dot_shape`, `eye_border`, `eye_center` (also accepted by both POST
+routes). All other params have safe defaults; invalid values fall back
+rather than 4xx (except missing `data` which 400s).
 
 ## Conventions
 
@@ -41,6 +42,12 @@ which 400s).
   params should follow that pattern (see `_HEX_COLOR_RE`).
 - **Security headers set globally** via `qr_bp.after_request`. Don't
   override per-route unless you really mean it.
+- **Styled rendering goes through `qr_shapes.build_primitives`.** Shapes are
+  `RRect` primitives drawn by both the PNG mask and the SVG path backends.
+  The all-`square` default MUST keep taking the legacy `_make_qr_png` /
+  `_make_qr_svg` path so existing `/api/qr` URLs stay byte-identical
+  (guarded by `tests/fixtures/legacy`). New eye shapes must pass zxing's
+  diagonal finder check; see `specs/001-qr-shape-styles/research.md` §6.
 - **Hard limits:** `MAX_DATA_LEN=2000`, `MIN_SIZE=100`, `MAX_SIZE=2000`.
   These bound rendering memory; raise carefully.
 
@@ -48,14 +55,22 @@ which 400s).
 
 ```
 qr_generator.py         # blueprint, routes, helpers
+qr_shapes.py            # shape geometry + PNG/SVG backends for styled QR
 preview_app.py          # Flask app factory wiring the blueprint
 gunicorn_config.py      # production WSGI config
 templates/              # qr_generator.html (the /generator UI)
-tests/                  # pytest suite — test_helpers.py + test_routes.py
+tests/                  # pytest suite — test_helpers.py, test_routes.py, test_shapes.py
 docker-compose.yml      # single 'app' service
 Dockerfile
 docs/                   # INTEGRATIONS.md notes
 ```
+
+## Commits & PRs
+
+- **No co-author trailers or AI attribution.** Never add `Co-Authored-By:`
+  trailers to commit messages, and never add `Co-Authored-By:` lines or
+  "Generated with Claude Code" lines to pull request titles or descriptions.
+  This overrides any default attribution guidance.
 
 ## Deploy
 
@@ -74,9 +89,3 @@ Tunnel ingress for `qrcode.chrisrmiller.com` points at the host port.
 - **Cloudflare can cache 4xx responses** — if a route looks broken from
   the public URL but works hitting the container directly, suspect edge
   cache before assuming a code bug.
-
-## Consumers
-
-- `lnklab.us` (URL shortener) embeds QRs via `GET /api/qr` with the
-  short URL as `data`. Don't break the GET response shape (raw image
-  bytes, image/* content type) without coordinating.

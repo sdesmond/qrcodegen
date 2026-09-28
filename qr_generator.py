@@ -12,6 +12,9 @@ import barcode
 from barcode.writer import ImageWriter, SVGWriter
 from flask import Blueprint, render_template, request, send_file, jsonify
 
+import qr_shapes
+from qr_shapes import ShapeStyle, DOT_SHAPE_SET, EYE_BORDER_SET, EYE_CENTER_SET
+
 qr_bp = Blueprint('qr', __name__)
 
 
@@ -36,6 +39,10 @@ def _req_source():
 
 def _log_event(**kwargs):
     _log.info(kwargs)
+
+
+def _shape_log_fields(shape):
+    return {'dot_shape': shape.dot, 'eye_border': shape.eye_border, 'eye_center': shape.eye_center}
 
 
 _CSP = (
@@ -84,6 +91,16 @@ _HEX_COLOR_RE = re.compile(r'^#[0-9a-fA-F]{6}$')
 
 def _safe_color(value, default):
     return value if _HEX_COLOR_RE.match(value or '') else default
+
+
+def _parse_shape_style(src):
+    """Whitelist the dot/eye shape params; anything unrecognised becomes 'square'."""
+    def pick(key, allowed):
+        value = (src.get(key) or '')[:32]
+        return value if value in allowed else qr_shapes.DEFAULT
+    return ShapeStyle(pick('dot_shape', DOT_SHAPE_SET),
+                      pick('eye_border', EYE_BORDER_SET),
+                      pick('eye_center', EYE_CENTER_SET))
 
 
 def _safe_int(value, default, lo, hi):
@@ -210,10 +227,15 @@ def _parse_common(form):
     fg = _safe_color(form.get('fg_color'), '#000000')
     bg = _safe_color(form.get('bg_color'), '#ffffff')
     ec = ERROR_LEVELS.get(form.get('ec_level', 'M'), ERROR_CORRECT_M)
-    return output_fmt, size, margin, fg, bg, ec
+    shape = _parse_shape_style(form)
+    return output_fmt, size, margin, fg, bg, ec, shape
 
 
-def _make_qr_png(data, ec, size, margin, fg, bg):
+def _make_qr_png(data, ec, size, margin, fg, bg, shape=None):
+    if shape is not None and not shape.is_default:
+        matrix = qr_shapes.get_matrix(data, ec)
+        dots, eyes = qr_shapes.build_primitives(matrix, shape)
+        return qr_shapes.rasterize_png(dots, eyes, len(matrix), margin, size, fg, bg)
     box_size = max(1, size // (21 + margin * 2))
     qr = qrcode.QRCode(error_correction=ec, box_size=box_size, border=margin)
     qr.add_data(data)
@@ -226,7 +248,11 @@ def _make_qr_png(data, ec, size, margin, fg, bg):
     return buf
 
 
-def _make_qr_svg(data, ec, size, margin):
+def _make_qr_svg(data, ec, size, margin, shape=None):
+    if shape is not None and not shape.is_default:
+        matrix = qr_shapes.get_matrix(data, ec)
+        dots, eyes = qr_shapes.build_primitives(matrix, shape)
+        return qr_shapes.to_svg(dots, eyes, len(matrix), margin, size)
     box_size = max(1, size // (21 + margin * 2))
     factory = qrcode.image.svg.SvgImage
     img = qrcode.make(data, error_correction=ec, box_size=box_size,
@@ -252,16 +278,29 @@ def _make_barcode_buf(fmt, data, output_fmt, bar_height, margin, show_text):
     return buf
 
 
+def _build_shape_options():
+    groups = (('dot_shape', 'dot', qr_shapes.DOT_SHAPES),
+              ('eye_border', 'eye_border', qr_shapes.EYE_BORDERS),
+              ('eye_center', 'eye_center', qr_shapes.EYE_CENTERS))
+    return {
+        param: [(v, qr_shapes.display_name(kind, v), qr_shapes.swatch_svg(kind, v)) for v in values]
+        for param, kind, values in groups
+    }
+
+
+SHAPE_OPTIONS = _build_shape_options()
+
+
 @qr_bp.route('/generator')
 def generator():
-    return render_template('qr_generator.html')
+    return render_template('qr_generator.html', shape_options=SHAPE_OPTIONS)
 
 
 @qr_bp.route('/api/generate', methods=['POST'])
 def generate():
     form = request.form
     fmt = form.get('format', 'qrcode')
-    output_fmt, size, margin, fg, bg, ec = _parse_common(form)
+    output_fmt, size, margin, fg, bg, ec, shape = _parse_common(form)
 
     source = _req_source()
     try:
@@ -270,16 +309,16 @@ def generate():
             if not data:
                 return jsonify({'error': 'No data provided'}), 400
             if output_fmt == 'svg':
-                buf = _make_qr_svg(data, ec, size, margin)
+                buf = _make_qr_svg(data, ec, size, margin, shape=shape)
                 b64 = base64.b64encode(buf.getvalue()).decode()
                 resp = jsonify({'image': f'data:image/svg+xml;base64,{b64}', 'mime': 'image/svg+xml'})
             else:
-                buf = _make_qr_png(data, ec, size, margin, fg, bg)
+                buf = _make_qr_png(data, ec, size, margin, fg, bg, shape=shape)
                 b64 = base64.b64encode(buf.getvalue()).decode()
                 resp = jsonify({'image': f'data:image/png;base64,{b64}', 'mime': 'image/png'})
             _log_event(event='generate', format=fmt, content_type=form.get('content_type', 'text'),
                        output_format=output_fmt, ec_level=form.get('ec_level', 'M'),
-                       source=source, status='success')
+                       **_shape_log_fields(shape), source=source, status='success')
             return resp
 
         bc_id = BARCODE_FORMATS.get(fmt)
@@ -319,6 +358,15 @@ def qr_image_get():
       fg_color   (optional) — #rrggbb foreground, default #000000
       bg_color   (optional) — #rrggbb background, default #ffffff
       ec_level   (optional) — L | M | Q | H, default M
+      dot_shape  (optional) — square | rounded | extra_rounded | dots | classy |
+                              classy_rounded | horizontal_bars | vertical_bars |
+                              gapped_square, default square
+      eye_border (optional) — square | rounded | circle | teardrop | leaf, default square
+      eye_center (optional) — square | rounded | circle | teardrop | leaf, default square
+
+    Shape values are matched exactly (case-sensitive); anything else falls
+    back to square. Without shape params the output is unchanged from before
+    they existed.
     """
     args = request.args
     data = args.get('data', '')[:MAX_DATA_LEN]
@@ -333,16 +381,17 @@ def qr_image_get():
     fg = _safe_color(args.get('fg_color'), '#000000')
     bg = _safe_color(args.get('bg_color'), '#ffffff')
     ec = ERROR_LEVELS.get(args.get('ec_level', 'M'), ERROR_CORRECT_M)
+    shape = _parse_shape_style(args)
 
     try:
         if output_fmt == 'svg':
-            buf = _make_qr_svg(data, ec, size, margin)
+            buf = _make_qr_svg(data, ec, size, margin, shape=shape)
             mime = 'image/svg+xml'
         else:
-            buf = _make_qr_png(data, ec, size, margin, fg, bg)
+            buf = _make_qr_png(data, ec, size, margin, fg, bg, shape=shape)
             mime = 'image/png'
         _log_event(event='qr_embed', output_format=output_fmt, ec_level=args.get('ec_level', 'M'),
-                   size=size, source='api', status='success')
+                   size=size, **_shape_log_fields(shape), source='api', status='success')
         resp = send_file(buf, mimetype=mime)
         # Same payload always yields the same image — let CDNs cache it.
         resp.headers['Cache-Control'] = 'public, max-age=86400, immutable'
@@ -356,7 +405,7 @@ def qr_image_get():
 def download():
     form = request.form
     fmt = form.get('format', 'qrcode')
-    output_fmt, size, margin, fg, bg, ec = _parse_common(form)
+    output_fmt, size, margin, fg, bg, ec, shape = _parse_common(form)
 
     source = _req_source()
     try:
@@ -365,17 +414,17 @@ def download():
             if not data:
                 return jsonify({'error': 'No data provided'}), 400
             if output_fmt == 'svg':
-                buf = _make_qr_svg(data, ec, size, margin)
+                buf = _make_qr_svg(data, ec, size, margin, shape=shape)
                 _log_event(event='download', format=fmt, content_type=form.get('content_type', 'text'),
                            output_format=output_fmt, ec_level=form.get('ec_level', 'M'),
-                           source=source, status='success')
+                           **_shape_log_fields(shape), source=source, status='success')
                 return send_file(buf, mimetype='image/svg+xml', as_attachment=True,
                                  download_name='qrcode.svg')
             else:
-                buf = _make_qr_png(data, ec, size, margin, fg, bg)
+                buf = _make_qr_png(data, ec, size, margin, fg, bg, shape=shape)
                 _log_event(event='download', format=fmt, content_type=form.get('content_type', 'text'),
                            output_format=output_fmt, ec_level=form.get('ec_level', 'M'),
-                           source=source, status='success')
+                           **_shape_log_fields(shape), source=source, status='success')
                 return send_file(buf, mimetype='image/png', as_attachment=True,
                                  download_name='qrcode.png')
 

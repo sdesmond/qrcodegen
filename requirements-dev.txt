@@ -1,2 +1,3 @@
 -r requirements.txt
 pytest>=7.0
+zxing-cpp>=2.2

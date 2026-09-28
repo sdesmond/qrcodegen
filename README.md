@@ -156,6 +156,34 @@ Returns the file directly as a binary attachment.
 | `ec_level` | `L`, `M`, `Q`, `H` | `M` | QR error correction |
 | `fg_color` | `#rrggbb` | `#000000` | Foreground color |
 | `bg_color` | `#rrggbb` | `#ffffff` | Background color |
+| `dot_shape` | `square`, `rounded`, `extra_rounded`, `dots`, `classy`, `classy_rounded`, `horizontal_bars`, `vertical_bars`, `gapped_square` | `square` | QR data module shape |
+| `eye_border` | `square`, `rounded`, `circle`, `teardrop`, `leaf` | `square` | Outer ring of the three corner eyes |
+| `eye_center` | `square`, `rounded`, `circle`, `teardrop`, `leaf` | `square` | Solid center of the three corner eyes |
+
+Shape values are case-sensitive; anything unrecognised falls back to `square`, and
+barcode formats ignore them. Without shape params the output is exactly what it was
+before they existed.
+
+**Scannability.** Every combination is tested to decode, but some scanner apps built on
+zxing (common on Android) are stricter about the corner eyes. The most widely readable
+eye pairs are a `square` or `rounded` border with any center, or a `circle` border with a
+`rounded`, `circle`, or `teardrop` center. Thin shapes (`dots`, bars, `gapped_square`)
+also need good contrast between `fg_color` and `bg_color`; that's up to the caller.
+
+### Embed (`GET /api/qr`)
+
+```
+GET /api/qr?data=<payload>
+```
+
+Returns raw image bytes inline with `Cache-Control: public, max-age=86400, immutable`, so a
+QR can be used directly in `<img src>`. Accepts `data` (required), `format` (`png` | `svg`),
+`size`, `margin`, `fg_color`, `bg_color`, `ec_level`, `dot_shape`, `eye_border`, and
+`eye_center`, with the defaults above. Only a missing `data` returns an error (400).
+
+```html
+<img src="https://qrcode.chrisrmiller.com/api/qr?data=https://example.com&dot_shape=rounded&eye_border=rounded&eye_center=circle" alt="QR code">
+```
 
 ### QR content parameters
 

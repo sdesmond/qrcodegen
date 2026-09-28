@@ -10,6 +10,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY qr_generator.py .
+COPY qr_shapes.py .
 COPY preview_app.py .
 COPY gunicorn_config.py .
 COPY templates/ ./templates/

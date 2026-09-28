@@ -1,5 +1,6 @@
 """Unit tests for the input-validation helpers in qr_generator."""
-from qr_generator import _safe_color, _safe_int, _safe_float, _build_qr_data
+from qr_generator import _safe_color, _safe_int, _safe_float, _build_qr_data, _parse_shape_style
+from qr_shapes import ShapeStyle, DOT_SHAPES, EYE_BORDERS, EYE_CENTERS
 from werkzeug.datastructures import ImmutableMultiDict
 
 
@@ -196,3 +197,58 @@ class TestBuildQrData:
         out = _build_qr_data(_form(content_type='wifi', wifi_ssid=long_ssid, wifi_password='x'))
         # SSID limited to 64 chars
         assert 'S:' + 'S' * 64 + ';' in out
+
+
+# ── _parse_shape_style ───────────────────────────────────────────────────────
+
+class TestParseShapeStyle:
+    def test_missing_keys_default_to_square(self):
+        assert _parse_shape_style({}) == ShapeStyle('square', 'square', 'square')
+
+    def test_every_dot_shape_accepted(self):
+        for v in DOT_SHAPES:
+            assert _parse_shape_style({'dot_shape': v}).dot == v
+
+    def test_every_eye_border_accepted(self):
+        for v in EYE_BORDERS:
+            assert _parse_shape_style({'eye_border': v}).eye_border == v
+
+    def test_every_eye_center_accepted(self):
+        for v in EYE_CENTERS:
+            assert _parse_shape_style({'eye_center': v}).eye_center == v
+
+    def test_wrong_case_falls_back(self):
+        s = _parse_shape_style({'dot_shape': 'Dots', 'eye_border': 'CIRCLE', 'eye_center': 'Leaf'})
+        assert s == ShapeStyle()
+
+    def test_unknown_empty_and_long_values_fall_back(self):
+        assert _parse_shape_style({'dot_shape': 'stars'}).dot == 'square'
+        assert _parse_shape_style({'dot_shape': ''}).dot == 'square'
+        assert _parse_shape_style({'dot_shape': 'dots' + 'x' * 40}).dot == 'square'
+        assert _parse_shape_style({'dot_shape': 'x' * 1000}).dot == 'square'
+
+    def test_none_value_falls_back(self):
+        assert _parse_shape_style({'dot_shape': None}).dot == 'square'
+
+    def test_fields_fall_back_independently(self):
+        s = _parse_shape_style({'dot_shape': 'dots', 'eye_border': 'nope', 'eye_center': 'circle'})
+        assert s == ShapeStyle('dots', 'square', 'circle')
+
+    def test_value_only_valid_in_another_field_falls_back(self):
+        # 'dots' is a dot shape, not an eye border
+        assert _parse_shape_style({'eye_border': 'dots'}).eye_border == 'square'
+
+    def test_works_with_multidict(self):
+        md = ImmutableMultiDict([('dot_shape', 'classy'), ('eye_border', 'teardrop')])
+        assert _parse_shape_style(md) == ShapeStyle('classy', 'teardrop', 'square')
+
+    def test_dropped_eye_borders_fall_back(self):
+        for v in ('leaf_circle', 'square_circle'):
+            assert _parse_shape_style({'eye_border': v}).eye_border == 'square'
+
+    def test_is_default_only_when_all_square(self):
+        assert ShapeStyle().is_default
+        assert ShapeStyle('square', 'square', 'square').is_default
+        assert not ShapeStyle('dots', 'square', 'square').is_default
+        assert not ShapeStyle('square', 'circle', 'square').is_default
+        assert not ShapeStyle('square', 'square', 'leaf').is_default
