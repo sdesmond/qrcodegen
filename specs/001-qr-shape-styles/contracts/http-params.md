@@ -15,7 +15,7 @@ Principle II).
 | Key | Allowed values | Default |
 |---|---|---|
 | `dot_shape` | `square` · `rounded` · `extra_rounded` · `dots` · `classy` · `classy_rounded` · `horizontal_bars` · `vertical_bars` · `gapped_square` | `square` |
-| `eye_border` | `square` · `rounded` · `circle` · `teardrop` · `leaf` · `leaf_circle` · `square_circle` | `square` |
+| `eye_border` | `square` · `rounded` · `circle` · `teardrop` · `leaf` | `square` |
 | `eye_center` | `square` · `rounded` · `circle` · `teardrop` · `leaf` | `square` |
 
 ## Rules
@@ -23,7 +23,8 @@ Principle II).
 1. **Exact match, case-sensitive.** Any unknown, misspelled, empty, or differently-cased value
    falls back to `square` for that parameter only. The request still succeeds, with 200 and no
    error field (FR-012).
-2. **Independent.** Any combination is valid (315 total, FR-004).
+2. **Independent.** Any combination is valid (225 total, FR-004). Some eye pairs are harder for
+   zxing-based scanners to detect (research §6), but none are rejected.
 3. **QR only.** For `format` values other than `qrcode` on the POST routes, the shape params are
    ignored, and the output is byte-identical to the same request without them.
 4. **Composition with existing params.**

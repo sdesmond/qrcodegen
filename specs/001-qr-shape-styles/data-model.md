@@ -11,7 +11,7 @@ A value object holding the three styling choices for one QR render. It is immuta
 | Field | Type | Allowed values (display order) | Default |
 |---|---|---|---|
 | `dot` | str | `square`, `rounded`, `extra_rounded`, `dots`, `classy`, `classy_rounded`, `horizontal_bars`, `vertical_bars`, `gapped_square` | `square` |
-| `eye_border` | str | `square`, `rounded`, `circle`, `teardrop`, `leaf`, `leaf_circle`, `square_circle` | `square` |
+| `eye_border` | str | `square`, `rounded`, `circle`, `teardrop`, `leaf` | `square` |
 | `eye_center` | str | `square`, `rounded`, `circle`, `teardrop`, `leaf` | `square` |
 
 **Validation** (`_parse_shape_style`):

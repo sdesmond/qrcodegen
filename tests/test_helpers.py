@@ -239,8 +239,12 @@ class TestParseShapeStyle:
         assert _parse_shape_style({'eye_border': 'dots'}).eye_border == 'square'
 
     def test_works_with_multidict(self):
-        md = ImmutableMultiDict([('dot_shape', 'classy'), ('eye_border', 'leaf_circle')])
-        assert _parse_shape_style(md) == ShapeStyle('classy', 'leaf_circle', 'square')
+        md = ImmutableMultiDict([('dot_shape', 'classy'), ('eye_border', 'teardrop')])
+        assert _parse_shape_style(md) == ShapeStyle('classy', 'teardrop', 'square')
+
+    def test_dropped_eye_borders_fall_back(self):
+        for v in ('leaf_circle', 'square_circle'):
+            assert _parse_shape_style({'eye_border': v}).eye_border == 'square'
 
     def test_is_default_only_when_all_square(self):
         assert ShapeStyle().is_default

@@ -16,6 +16,7 @@
 - Q: Which shapes should be offered for the eye center? → A: Five solid shapes mirroring the border outlines: Square, Rounded, Circle, Teardrop, Leaf.
 - Directive: Dot shapes must include at least the eight options in the reference image `assets/dot-shape-styles.png`, in its order.
 - Q: Should "Gapped square" remain as a ninth dot shape beyond the reference image's eight? → A: Yes — keep it as the ninth option, listed last.
+- Q: The reference image's eye borders 6 (Leaf, round opening) and 7 (Square, round opening) fail zxing-based decoding with every eye center, because a round opening inside sharp outer corners breaks the scanner's diagonal finder-pattern check. How should this be handled? → A: Drop those two borders; offer the first five. Remaining eye pairs that zxing can't reliably detect are kept and verified by phone scan instead.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -50,7 +51,7 @@ The same person wants the three large corner markers ("eyes") to match their sty
 2. **Given** the generator, **When** the user selects a non-default eye center style, **Then** the inner center of all three eyes takes that shape and nothing else changes.
 3. **Given** a non-default dot shape, eye border, and eye center are all selected, **When** the code is generated, **Then** all three choices are applied together and the code scans successfully.
 4. **Given** custom foreground/background colors are set, **When** any shape combination is selected, **Then** the eyes and dots use the chosen foreground color on the chosen background.
-5. **Given** the eye border style picker, **When** it is displayed, **Then** its seven options appear in the same order and with the same silhouettes as the reference image, and the eye center picker shows the five solid shapes defined in FR-003.
+5. **Given** the eye border style picker, **When** it is displayed, **Then** its five options appear in the same order and with the same silhouettes as options 1–5 of the reference image, and the eye center picker shows the five solid shapes defined in FR-003.
 
 ---
 
@@ -93,14 +94,14 @@ An integrating service (e.g., a URL shortener embedding QR images) wants to requ
   7. **Horizontal bars** — horizontally adjacent modules join into pill-shaped bars with rounded ends.
   8. **Vertical bars** — vertically adjacent modules join into pill-shaped bars with rounded ends.
   9. **Gapped square** — each module is a slightly smaller square with a visible gap around it; modules never join. (Not in the reference image; listed after its eight options.)
-- **FR-002**: Users MUST be able to choose an **eye border style** (outer ring of the three corner markers). The options, in display order, MUST match the reference image `assets/eye-border-styles.png`:
+- **FR-002**: Users MUST be able to choose an **eye border style** (outer ring of the three corner markers). The options, in display order, MUST match options 1–5 of the reference image `assets/eye-border-styles.png`:
   1. **Square** (default) — thin square ring with sharp corners.
   2. **Rounded** — thin square ring with all four corners rounded.
   3. **Circle** — thin circular ring.
   4. **Teardrop** — thin ring with a sharp top-left corner and the other three corners fully rounded.
   5. **Leaf** — thick ring whose outline has sharp top-left and bottom-right corners and rounded top-right and bottom-left corners; the opening is teardrop-shaped (sharp only at the bottom-right).
-  6. **Leaf, round opening** — same outer outline as Leaf, with a circular opening.
-  7. **Square, round opening** — thick square outline with sharp corners and a circular opening.
+
+  The reference image's options 6 (Leaf, round opening) and 7 (Square, round opening) are not offered: no eye center makes them decodable by zxing-based scanners (see Clarifications).
 - **FR-003**: Users MUST be able to choose an **eye center style** (solid inner block of the three corner markers). The options are solid versions of the distinct eye border outlines, in this display order:
   1. **Square** (default) — solid square with sharp corners.
   2. **Rounded** — solid square with all four corners rounded.
@@ -129,10 +130,10 @@ An integrating service (e.g., a URL shortener embedding QR images) wants to requ
 
 ### Measurable Outcomes
 
-- **SC-001**: 100% of supported dot × eye border × eye center combinations (9 × 7 × 5 = 315 total) produce codes that decode correctly to the input data at the default size.
+- **SC-001**: All 9 × 5 × 5 = 225 combinations render. 100% of the 117 **decoder-safe** combinations (Square or Rounded border with any center, and Circle border with a Rounded, Circle, or Teardrop center, with any dot shape) decode correctly with zxing-cpp at the default size, at the minimum size, with a dense payload, and at margin 0. The other 108 combinations are covered by the SC-004 phone scans instead of the automated gate.
 - **SC-002**: Existing embed requests without shape options return images identical to pre-feature output (0 visual regressions for existing consumers).
 - **SC-003**: A user can change a QR code's dot and eye shapes and download the result in under 30 seconds from landing on the generator.
-- **SC-004**: Styled codes scan on first attempt with a typical phone camera at the default size for at least 95% of combinations tested. The phone-tested sample is each of the 9 dot shapes (with square eyes), each of the 7 eye borders, and each of the 5 eye centers (with square dots): 21 codes, one phone.
+- **SC-004**: Styled codes scan on first attempt with a typical phone camera at the default size for at least 95% of combinations tested. The phone-tested sample is each of the 9 dot shapes (with square eyes), each of the 5 eye borders, and each of the 5 eye centers (with square dots), plus the 12 eye pairs outside the decoder-safe set (with square dots): 31 codes, one phone.
 - **SC-005**: Generating a styled code feels as responsive as generating a plain code today (no user-noticeable slowdown in the preview): server-side rendering of a styled PNG at the default size (300 px) takes at most 50 ms.
 - **SC-006**: Each eye border option, rendered in a generated code, is recognizable as the corresponding silhouette in the reference image when compared side by side, and each eye center option has the same orientation as the matching border outline.
 

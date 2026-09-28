@@ -507,3 +507,94 @@ class TestGeneratorShapeStyle:
         labels = _option_labels(_qr_options_html(client), 'dot_shape')
         assert len(labels) == len(DOT_SHAPES)
         assert all('<svg' in lab for lab in labels)
+
+
+# ── US2: combinations decode (SC-001, FR-014) ────────────────────────────────
+
+DENSE = ('https://example.com/a/very/long/path?' + '&'.join(
+    f'k{i}=value{i}' for i in range(30)))[:300]
+
+# Eye pairs that zxing-based scanners detect with every dot shape (research §6).
+# Other pairs render correctly but can fail zxing's diagonal finder check; they
+# are verified by phone scan (SC-004) and reported here as non-strict xfails.
+DECODER_SAFE_EYES = frozenset(
+    [(b, c) for b in ('square', 'rounded') for c in EYE_CENTERS]
+    + [('circle', c) for c in ('rounded', 'circle', 'teardrop')])
+
+ALL_COMBOS = [(d, b, c) for d in DOT_SHAPES for b in EYE_BORDERS for c in EYE_CENTERS]
+SAFE_COMBOS = [k for k in ALL_COMBOS if k[1:] in DECODER_SAFE_EYES]
+_MARGINAL = pytest.mark.xfail(strict=False, reason='eye pair outside the zxing decoder-safe set')
+
+
+def _combo_params(combos):
+    return [pytest.param(*k, id='-'.join(k),
+                         marks=() if k[1:] in DECODER_SAFE_EYES else _MARGINAL) for k in combos]
+
+
+def _padded(buf, pad=30):
+    """zxing needs a light quiet zone, so pad margin-0 renders before decoding."""
+    img = Image.open(buf).convert('RGB')
+    out = Image.new('RGB', (img.width + 2 * pad, img.height + 2 * pad), '#ffffff')
+    out.paste(img, (pad, pad))
+    b = io.BytesIO()
+    out.save(b, format='PNG')
+    b.seek(0)
+    return b
+
+
+class TestShapeCombinationDecode:
+    def test_combination_counts(self):
+        assert len(ALL_COMBOS) == 225
+        assert len(SAFE_COMBOS) == 117
+
+    @pytest.mark.parametrize('dot,border,center', _combo_params(ALL_COMBOS))
+    def test_decode_combination(self, dot, border, center):
+        buf = _make_qr_png(SHAPE_URL, ERROR_CORRECT_M, 300, 4, '#000000', '#ffffff',
+                           shape=ShapeStyle(dot, border, center))
+        assert _decodes_to(buf, SHAPE_URL)
+
+    @pytest.mark.parametrize('dot,border,center', _combo_params(SAFE_COMBOS))
+    def test_decode_dense_payload(self, dot, border, center):
+        buf = _make_qr_png(DENSE, ERROR_CORRECT_H, 600, 4, '#000000', '#ffffff',
+                           shape=ShapeStyle(dot, border, center))
+        assert _decodes_to(buf, DENSE)
+
+    @pytest.mark.parametrize('dot,border,center', _combo_params(SAFE_COMBOS))
+    def test_decode_min_size(self, dot, border, center):
+        buf = _make_qr_png('hi there', ERROR_CORRECT_M, MIN_SIZE, 4, '#000000', '#ffffff',
+                           shape=ShapeStyle(dot, border, center))
+        assert _decodes_to(buf, 'hi there')
+
+    @pytest.mark.parametrize('dot,border,center', _combo_params(SAFE_COMBOS))
+    def test_decode_margin_zero(self, dot, border, center):
+        buf = _make_qr_png(SHAPE_URL, ERROR_CORRECT_M, 300, 0, '#000000', '#ffffff',
+                           shape=ShapeStyle(dot, border, center))
+        assert _decodes_to(_padded(buf), SHAPE_URL)
+
+    def test_dense_payload_is_dense(self):
+        assert len(DENSE) == 300
+
+
+# ── US2: eye params on routes ────────────────────────────────────────────────
+
+class TestEyeShapeRoutes:
+    def test_eye_styles_change_output(self, client):
+        rv = _post_qr(client, eye_border='leaf', eye_center='circle')
+        assert rv.status_code == 200
+        assert _decode_image(rv.get_json()) != _decode_image(_post_qr(client).get_json())
+
+    def test_invalid_eye_border_falls_back_independently(self, client):
+        a = _decode_image(_post_qr(client, dot_shape='dots', eye_border='nope').get_json())
+        b = _decode_image(_post_qr(client, dot_shape='dots').get_json())
+        assert a == b
+
+    @pytest.mark.parametrize('name,values', [('eye_border', EYE_BORDERS),
+                                             ('eye_center', EYE_CENTERS)])
+    def test_generator_eye_radios(self, client, name, values):
+        section = _qr_options_html(client)
+        radios = _radios(section, name)
+        assert [v for v, _ in radios] == list(values)
+        assert [v for v, attrs in radios if 'checked' in attrs] == ['square']
+        labels = _option_labels(section, name)
+        assert len(labels) == len(values)
+        assert all('<svg' in lab for lab in labels)

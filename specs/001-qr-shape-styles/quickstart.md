@@ -30,11 +30,11 @@ done > /tmp/qr-baseline.txt
 ```bash
 python3 -m pytest                        # full suite must pass (Principle V)
 python3 -m pytest -k shape -q            # parser, geometry, routes
-python3 -m pytest -k decode -q           # 315-combination zxing decode (SC-001), a few seconds
+python3 -m pytest -k decode -q           # 225-combination zxing decode (SC-001), a few seconds
 ```
 
-Expected: everything passes. The decode test reports 315 successful combos plus the
-dense / min-size / margin-0 cases.
+Expected: everything passes. The 117 decoder-safe combinations pass, plus their dense /
+min-size / margin-0 cases; the other 108 show as xfailed or xpassed (research §6).
 
 ## 3. Contract checks (after implementing)
 
@@ -60,7 +60,7 @@ curl -s "http://localhost:8000/api/qr?data=hi&format=svg&dot_shape=extra_rounded
 ## 4. Visual check against the reference images (SC-006, US1-4, US2-5)
 
 1. Open `http://localhost:8000/generator` in QR mode and confirm the "Shape style" section shows
-   9 dot, 7 border, and 5 center swatches.
+   9 dot, 5 border, and 5 center swatches.
 2. Compare the swatches side by side with `assets/dot-shape-styles.png` (options 1–8, then
    Gapped square) and `assets/eye-border-styles.png`. Check that they appear in the same order
    with recognisably the same silhouettes, and that each eye center has the same orientation as

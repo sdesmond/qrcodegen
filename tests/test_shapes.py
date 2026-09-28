@@ -39,21 +39,20 @@ class TestWhitelists:
                               'gapped_square')
 
     def test_eye_borders_in_contract_order(self):
-        assert EYE_BORDERS == ('square', 'rounded', 'circle', 'teardrop', 'leaf',
-                               'leaf_circle', 'square_circle')
+        assert EYE_BORDERS == ('square', 'rounded', 'circle', 'teardrop', 'leaf')
 
     def test_eye_centers_in_contract_order(self):
         assert EYE_CENTERS == ('square', 'rounded', 'circle', 'teardrop', 'leaf')
 
     def test_lengths(self):
-        assert (len(DOT_SHAPES), len(EYE_BORDERS), len(EYE_CENTERS)) == (9, 7, 5)
+        assert (len(DOT_SHAPES), len(EYE_BORDERS), len(EYE_CENTERS)) == (9, 5, 5)
 
     def test_every_value_has_a_display_name(self):
         for kind, values in (('dot', DOT_SHAPES), ('eye_border', EYE_BORDERS),
                              ('eye_center', EYE_CENTERS)):
             for v in values:
                 assert qr_shapes.display_name(kind, v)
-        assert qr_shapes.display_name('eye_border', 'leaf_circle') == 'Leaf, round opening'
+        assert qr_shapes.display_name('eye_border', 'teardrop') == 'Teardrop'
         assert qr_shapes.display_name('dot', 'extra_rounded') == 'Extra rounded'
 
 
@@ -394,3 +393,124 @@ class TestDotSwatches:
 
     def test_unknown_kind_is_empty(self):
         assert qr_shapes.swatch_svg('nope', 'square') == ''
+
+
+# ── US2: eye geometry (research §5) ──────────────────────────────────────────
+
+TL, TR, BR, BL = 0, 1, 2, 3
+
+
+def _flags(*on):
+    return tuple(i in on for i in range(4))
+
+
+# border → (outer r, outer corners, opening r, opening corners)
+BORDER_TABLE = {
+    'square': (0, NONE, 0, NONE),
+    'rounded': (2, ALL, 1, ALL),
+    'circle': (3.5, ALL, 2.5, ALL),
+    'teardrop': (3.5, _flags(TR, BR, BL), 2.5, _flags(TR, BR, BL)),
+    'leaf': (3.5, _flags(TR, BL), 2.5, _flags(TL, TR, BL)),
+}
+
+# center → (r, corners)
+CENTER_TABLE = {
+    'square': (0, NONE),
+    'rounded': (0.75, ALL),
+    'circle': (1.5, ALL),
+    'teardrop': (1.5, _flags(TR, BR, BL)),
+    'leaf': (1.5, _flags(TR, BL)),
+}
+
+
+def _eyes(style):
+    m = _matrix()
+    return len(m), build_primitives(m, style)[1]
+
+
+def _norm(rect):
+    """Treat corner flags as irrelevant when r == 0."""
+    return rect._replace(corners=NONE) if rect.r == 0 else rect
+
+
+class TestEyeGeometry:
+    def test_tables_cover_whitelists(self):
+        assert tuple(BORDER_TABLE) == EYE_BORDERS
+        assert tuple(CENTER_TABLE) == EYE_CENTERS
+
+    @pytest.mark.parametrize('border', EYE_BORDERS)
+    def test_border_outer_and_opening(self, border):
+        n, eyes = _eyes(ShapeStyle(eye_border=border))
+        r_out, c_out, r_open, c_open = BORDER_TABLE[border]
+        for i, (ox, oy) in enumerate(finder_boxes(n)):
+            outer, opening = eyes[3 * i], eyes[3 * i + 1]
+            assert _norm(outer) == _norm(RRect(ox, oy, 7, 7, r_out, c_out, 1))
+            assert _norm(opening) == _norm(RRect(ox + 1, oy + 1, 5, 5, r_open, c_open, 0))
+
+    def test_circle_opening_is_a_circle(self):
+        _, eyes = _eyes(ShapeStyle(eye_border='circle'))
+        assert eyes[1] == circle(3.5, 3.5, 5, ink=0)
+
+    @pytest.mark.parametrize('dropped', ['leaf_circle', 'square_circle'])
+    def test_dropped_borders_render_as_square(self, dropped):
+        assert dropped not in EYE_BORDERS
+        assert _eyes(ShapeStyle(eye_border=dropped)) == _eyes(ShapeStyle())
+
+    @pytest.mark.parametrize('center', EYE_CENTERS)
+    def test_center(self, center):
+        n, eyes = _eyes(ShapeStyle(eye_center=center))
+        r, corners = CENTER_TABLE[center]
+        for i, (ox, oy) in enumerate(finder_boxes(n)):
+            assert _norm(eyes[3 * i + 2]) == _norm(RRect(ox + 2, oy + 2, 3, 3, r, corners, 1))
+
+    @pytest.mark.parametrize('border', EYE_BORDERS)
+    @pytest.mark.parametrize('center', EYE_CENTERS)
+    def test_all_three_eyes_identical_not_mirrored(self, border, center):
+        n, eyes = _eyes(ShapeStyle('square', border, center))
+        rel = []
+        for i, (ox, oy) in enumerate(finder_boxes(n)):
+            rel.append([p._replace(x=p.x - ox, y=p.y - oy) for p in eyes[3 * i:3 * i + 3]])
+        assert rel[0] == rel[1] == rel[2]
+
+    def test_border_and_center_are_independent(self):
+        m = _matrix()
+        base_dots, base = build_primitives(m, ShapeStyle())
+        for border in EYE_BORDERS:
+            dots, eyes = build_primitives(m, ShapeStyle(eye_border=border))
+            assert dots == base_dots
+            assert [eyes[i] for i in (2, 5, 8)] == [base[i] for i in (2, 5, 8)]
+        for center in EYE_CENTERS:
+            dots, eyes = build_primitives(m, ShapeStyle(eye_center=center))
+            assert dots == base_dots
+            assert [e for i, e in enumerate(eyes) if i % 3 != 2] == \
+                   [e for i, e in enumerate(base) if i % 3 != 2]
+
+    @pytest.mark.parametrize('border', EYE_BORDERS)
+    @pytest.mark.parametrize('center', EYE_CENTERS)
+    def test_eyes_stay_in_their_boxes(self, border, center):
+        n, eyes = _eyes(ShapeStyle('square', border, center))
+        for i, (ox, oy) in enumerate(finder_boxes(n)):
+            outer, opening, ctr = eyes[3 * i:3 * i + 3]
+            assert _inside(outer, ox, oy, ox + 7, oy + 7)
+            assert _inside(opening, ox + 1, oy + 1, ox + 6, oy + 6)
+            assert _inside(ctr, ox + 2, oy + 2, ox + 5, oy + 5)
+            assert _inside(outer, 0, 0, n, n)
+
+    def test_unknown_values_are_square(self):
+        _, eyes = _eyes(ShapeStyle(eye_border='nope', eye_center='nope'))
+        _, square = _eyes(ShapeStyle())
+        assert eyes == square
+
+
+class TestEyeSwatches:
+    @pytest.mark.parametrize('kind,values', [('eye_border', EYE_BORDERS),
+                                             ('eye_center', EYE_CENTERS)])
+    def test_swatches_are_inline_evenodd_svg(self, kind, values):
+        svgs = [qr_shapes.swatch_svg(kind, v) for v in values]
+        assert len(set(svgs)) == len(values)
+        for svg in svgs:
+            root = ET.fromstring(svg)
+            assert root.tag == SVG_NS + 'svg'
+            assert root.get('fill') == 'currentColor'
+            paths = root.findall(SVG_NS + 'path')
+            assert paths and all(p.get('fill-rule') == 'evenodd' for p in paths)

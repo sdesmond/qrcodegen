@@ -22,8 +22,7 @@ DEFAULT = 'square'
 
 DOT_SHAPES = ('square', 'rounded', 'extra_rounded', 'dots', 'classy', 'classy_rounded',
               'horizontal_bars', 'vertical_bars', 'gapped_square')
-EYE_BORDERS = ('square', 'rounded', 'circle', 'teardrop', 'leaf', 'leaf_circle',
-               'square_circle')
+EYE_BORDERS = ('square', 'rounded', 'circle', 'teardrop', 'leaf')
 EYE_CENTERS = ('square', 'rounded', 'circle', 'teardrop', 'leaf')
 
 DOT_SHAPE_SET = frozenset(DOT_SHAPES)
@@ -39,8 +38,7 @@ _DISPLAY_NAMES = {
     },
     'eye_border': {
         'square': 'Square', 'rounded': 'Rounded', 'circle': 'Circle', 'teardrop': 'Teardrop',
-        'leaf': 'Leaf', 'leaf_circle': 'Leaf, round opening',
-        'square_circle': 'Square, round opening',
+        'leaf': 'Leaf',
     },
     'eye_center': {
         'square': 'Square', 'rounded': 'Rounded', 'circle': 'Circle', 'teardrop': 'Teardrop',
@@ -135,15 +133,42 @@ def _dot_primitives(dot, x, y, nb):
     return [RRect(x, y, 1, 1, 0, NO_CORNERS)]
 
 
+TEARDROP_CORNERS = (False, True, True, True)  # sharp top-left
+LEAF_CORNERS = (False, True, False, True)      # sharp top-left and bottom-right
+
+# border → (outer r, outer corners, opening r, opening corners); outer is 7×7,
+# opening is 5×5 at (+1, +1). Round openings inside sharp outer corners
+# ("leaf, round opening", "square, round opening") were dropped: they break the
+# diagonal 1:1:3:1:1 finder check that zxing-based scanners apply.
+_EYE_BORDERS = {
+    'square': (0, NO_CORNERS, 0, NO_CORNERS),
+    'rounded': (2, ALL_CORNERS, 1, ALL_CORNERS),
+    'circle': (3.5, ALL_CORNERS, 2.5, ALL_CORNERS),
+    'teardrop': (3.5, TEARDROP_CORNERS, 2.5, TEARDROP_CORNERS),
+    'leaf': (3.5, LEAF_CORNERS, 2.5, (True, True, False, True)),
+}
+
+# center → (r, corners); a solid 3×3 at (+2, +2)
+_EYE_CENTERS = {
+    'square': (0, NO_CORNERS),
+    'rounded': (0.75, ALL_CORNERS),
+    'circle': (1.5, ALL_CORNERS),
+    'teardrop': (1.5, TEARDROP_CORNERS),
+    'leaf': (1.5, LEAF_CORNERS),
+}
+
+
 def _eye_border_primitives(border, ox, oy):
     """[outer ring (ink 1), opening (ink 0)] for the finder at (ox, oy)."""
-    return [RRect(ox, oy, 7, 7, 0, NO_CORNERS, 1),
-            RRect(ox + 1, oy + 1, 5, 5, 0, NO_CORNERS, 0)]
+    r_out, c_out, r_open, c_open = _EYE_BORDERS.get(border, _EYE_BORDERS[DEFAULT])
+    return [RRect(ox, oy, 7, 7, r_out, c_out, 1),
+            RRect(ox + 1, oy + 1, 5, 5, r_open, c_open, 0)]
 
 
 def _eye_center_primitives(center, ox, oy):
     """The solid 3×3 center for the finder at (ox, oy)."""
-    return [RRect(ox + 2, oy + 2, 3, 3, 0, NO_CORNERS, 1)]
+    r, corners = _EYE_CENTERS.get(center, _EYE_CENTERS[DEFAULT])
+    return [RRect(ox + 2, oy + 2, 3, 3, r, corners, 1)]
 
 
 def _dots_for(matrix, dot, skip=None):
@@ -309,4 +334,10 @@ def swatch_svg(kind, value):
         matrix = [[c == '1' for c in row] for row in _SWATCH_DOTS]
         dots = _dots_for(matrix, value)
         return _swatch_wrapper('-0.5 -0.5 6 6', f'<path d="{_path_d(dots, 0)}"/>')
+    if kind in ('eye_border', 'eye_center'):
+        border = value if kind == 'eye_border' else DEFAULT
+        center = value if kind == 'eye_center' else DEFAULT
+        eye = _eye_border_primitives(border, 0, 0) + _eye_center_primitives(center, 0, 0)
+        return _swatch_wrapper('-0.5 -0.5 8 8',
+                               f'<path fill-rule="evenodd" d="{_path_d(eye, 0)}"/>')
     return ''

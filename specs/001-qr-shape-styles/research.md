@@ -138,8 +138,9 @@ sharper outline, not from shrinking the opening.
 | `circle` | r=3.5, all | r=2.5, all |
 | `teardrop` | r=3.5, TR/BR/BL (TL sharp) | r=2.5, TR/BR/BL |
 | `leaf` | r=3.5, TR/BL (TL, BR sharp) | r=2.5, TL/TR/BL (BR sharp) |
-| `leaf_circle` | as `leaf` | circle r=2.5 |
-| `square_circle` | r=0 | circle r=2.5 |
+
+The reference image's `leaf_circle` (leaf outer, circle opening) and `square_circle` (r=0 outer,
+circle opening) were implemented and then **dropped**: see §6.
 
 | Eye center | 3×3 at +2,+2 |
 |---|---|
@@ -157,7 +158,7 @@ any contract.
 ## 6. Decode verification (FR-014, SC-001, SC-004)
 
 **Decision**: Add **`zxing-cpp`** (pip `zxing-cpp`, module `zxingcpp`) to `requirements-dev.txt`
-only. The test suite renders all 315 combinations as PNG at size 300 for a representative URL
+only. The test suite renders all 225 combinations as PNG at size 300 for a representative URL
 payload and asserts that `zxingcpp.read_barcodes(img)[0].text == data`.
 
 Additional parametrized cases:
@@ -170,8 +171,27 @@ Additional parametrized cases:
 
 **Rationale**: zxing-cpp ships self-contained wheels for Windows, Linux, and macOS with no
 system libraries. It is a robust, widely used decoder, it's fast (spike: <10 ms per decode, so
-the 315-combo run takes a few seconds), and it accepts PIL images directly. It is dev-only, so
+the 225-combo run takes a few seconds), and it accepts PIL images directly. It is dev-only, so
 the image and runtime surface are unchanged.
+
+**Finding: the diagonal finder check.** zxing-cpp (like zxing) confirms each finder pattern along
+both diagonals as well as horizontally and vertically, expecting the 1:1:3:1:1 ratio in every
+direction. Shapes that are much thicker or thinner on the diagonal than on the axes fail it:
+
+- A round opening inside sharp outer corners (`square_circle`, `leaf_circle`) makes the ring
+  ~2.5× thicker on the diagonal. These failed with every center and all 9 dot shapes, so they
+  were dropped.
+- A square center inside a round ring nearly touches the ring on the diagonal.
+- Teardrop and Leaf have sharp diagonal corners on one side only; they pass or fail depending
+  on the dot shape.
+
+OpenCV's detector was also tried and is stricter (225/315 failures at the time), so it can't
+stand in. Measured at 300 px with the remaining 5 borders, the **decoder-safe set** is: Square or
+Rounded border with any center, and Circle border with a Rounded, Circle, or Teardrop center.
+Those 13 eye pairs × 9 dots = 117 combinations decode at 300 px, at `MIN_SIZE`, with a dense
+~300-char EC-H payload at 600 px, and at margin 0; the tests gate on them. The other 108
+combinations (40 of which decode anyway) run as non-strict xfails and are verified by phone scan
+(SC-004). Phone camera apps use different detectors and commonly read these designs.
 
 **Alternatives considered**: `pyzbar` was rejected because it needs the system `libzbar` on
 Linux and is a weaker decoder. `opencv-python-headless` was rejected because it's around 50 MB

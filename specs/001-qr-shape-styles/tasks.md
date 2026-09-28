@@ -60,7 +60,7 @@ These apply to all tasks below:
   - It works with both a dict and a werkzeug `MultiDict`.
   - `ShapeStyle.is_default` is True only when all three fields are `square`.
 - [X] T006 [P] Create `tests/test_shapes.py` with the foundational geometry and backend units:
-  - The whitelist tuples `DOT_SHAPES`, `EYE_BORDERS`, `EYE_CENTERS` have exactly the values in contract order, with lengths 9, 7, and 5.
+  - The whitelist tuples `DOT_SHAPES`, `EYE_BORDERS`, `EYE_CENTERS` have exactly the values in contract order, with lengths 9, 5, and 5.
   - `RRect` fields match data-model.md.
   - `build_primitives(matrix, ShapeStyle('square','square','square'))` gives zero dot primitives inside the three 7×7 finder boxes and exactly one 1×1 dot per other dark module.
   - Eye primitives come in the order outer (ink 1), opening (ink 0), center (ink 1) for each of the 3 finders.
@@ -80,7 +80,7 @@ These apply to all tasks below:
   - The ordered tuples `DOT_SHAPES`, `EYE_BORDERS`, `EYE_CENTERS`, with values in contract order, plus matching `frozenset`s for lookup.
   - `DEFAULT = 'square'`.
   - `class ShapeStyle(NamedTuple)` with fields `dot`, `eye_border`, `eye_center` (all defaulting to `'square'`) and an `is_default` property.
-  - A human display-name map for each value (e.g. `extra_rounded` → "Extra rounded", `leaf_circle` → "Leaf, round opening", `square_circle` → "Square, round opening"), using the names from spec FR-001 to FR-003.
+  - A human display-name map for each value (e.g. `extra_rounded` → "Extra rounded", `classy_rounded` → "Classy rounded"), using the names from spec FR-001 to FR-003.
 - [X] T009 In `qr_shapes.py`, define `class RRect(NamedTuple)`: `x, y, w, h, r` as floats, `corners` as a tuple of 4 bools in the order TL, TR, BR, BL, and `ink` as an int (1 paints, 0 cuts). Add a helper `circle(cx, cy, d, ink=1)` that returns an `RRect` with `r = d/2` and all corners set.
 - [X] T010 In `qr_shapes.py`, implement `get_matrix(data, ec)`. It builds `qrcode.QRCode(error_correction=ec, border=0)`, calls `add_data` and `make(fit=True)`, and returns `get_matrix()` as a list of lists of bool. Also implement `finder_boxes(n)`, which returns the three 7×7 origins `(0,0)`, `(n-7,0)`, `(0,n-7)`, and `is_finder(x, y, n)`.
 - [X] T011 In `qr_shapes.py`, implement `build_primitives(matrix, style)`, which returns `(dots, eyes)` per data-model.md "Render plan".
@@ -172,44 +172,44 @@ If shipping at this point: the parser already accepts `eye_border`/`eye_center` 
 
 ## Phase 4: User Story 2 - Choose eye border and eye center styles (Priority: P2)
 
-**Goal**: Two more swatch groups control the outer ring (7 styles) and the inner block (5 styles) of all three eyes. Each is independent and combinable with any dot shape.
+**Goal**: Two more swatch groups control the outer ring (5 styles) and the inner block (5 styles) of all three eyes. Each is independent and combinable with any dot shape.
 
-**Independent Test**: With square dots, change only the eye border and confirm only the rings change, identically on all three corners. Then change only the center. All 315 combinations decode.
+**Independent Test**: With square dots, change only the eye border and confirm only the rings change, identically on all three corners. Then change only the center. All 225 combinations render, and the 117 decoder-safe ones decode.
 
 ### Tests for User Story 2 (write first; they must fail)
 
-- [ ] T031 [P] [US2] In `tests/test_shapes.py`, add eye geometry units against the research §5 tables:
-  - Each of the 7 borders gives an outer `RRect` equal to the 7×7 box with the specified r and corners, followed by an opening (ink 0) inside the 5×5 box at (+1,+1) with the specified r and corners. `leaf_circle` and `square_circle` have circular openings (r = 2.5, all corners).
+- [X] T031 [P] [US2] In `tests/test_shapes.py`, add eye geometry units against the research §5 tables:
+  - Each of the 5 borders gives an outer `RRect` equal to the 7×7 box with the specified r and corners, followed by an opening (ink 0) inside the 5×5 box at (+1,+1) with the specified r and corners. `circle` has a circular opening (r = 2.5, all corners). The dropped `leaf_circle` / `square_circle` values render as square.
   - Each of the 5 centers gives a 3×3 `RRect` at (+2,+2) with the specified r and corners.
   - All three finders get identical relative geometry, not mirrored (FR-005).
   - Changing `eye_border` doesn't change the center primitives or the dot list, and vice versa (FR-004, FR-005).
   - Every eye primitive stays within `[0, n]²`, so margin=0 never clips.
   - `swatch_svg('eye_border', v)` and `swatch_svg('eye_center', v)` for every value parse as XML with an `svg` root and an evenodd `<path>`.
-- [ ] T032 [P] [US2] In `tests/test_routes.py`, add the exhaustive decode test `test_decode_all_315_combinations`. Use `pytest.importorskip('zxingcpp')` and parametrize (or loop with collected failures) over `DOT_SHAPES × EYE_BORDERS × EYE_CENTERS`. Render a representative URL at size 300 via `_make_qr_png` and assert the decoded text equals the input (SC-001, FR-014). Also add:
-  - A dense payload (about 300 chars, EC `H`) at size 600 for each dot shape paired with each eye border, and separately with each eye center.
-  - margin=0 at size 300 for each eye border.
-- [ ] T033 [P] [US2] In `tests/test_routes.py`, add route tests for eyes:
+- [X] T032 [P] [US2] In `tests/test_routes.py`, add the decode tests (SC-001, FR-014). Parametrize over `DOT_SHAPES × EYE_BORDERS × EYE_CENTERS` (225), rendering a representative URL at size 300 via `_make_qr_png` and asserting the decoded text equals the input. Combinations outside the decoder-safe eye pairs (research §6) are non-strict xfails. For the 117 decoder-safe combinations, also add:
+  - A dense payload (about 300 chars, EC `H`) at size 600.
+  - A short payload at `MIN_SIZE`.
+  - margin=0 at size 300 (padded with a quiet zone before decoding).
+- [X] T033 [P] [US2] In `tests/test_routes.py`, add route tests for eyes:
   - `POST /api/generate` with `eye_border=leaf&eye_center=circle` returns 200 and differs from the default.
   - `eye_border=nope` falls back independently: `dot_shape=dots&eye_border=nope` gives the same bytes as `dot_shape=dots` alone.
   - A `GET /generator` test checks for 7 `eye_border` radios and 5 `eye_center` radios in contract order, `square` checked, each with an inline `<svg`.
 
 ### Implementation for User Story 2
 
-- [ ] T034 [US2] In `qr_shapes.py`, implement `_eye_border_primitives(border, ox, oy)` for all 7 values per the research §5 table. It returns `[outer RRect(ink=1), opening RRect(ink=0)]`.
+- [X] T034 [US2] In `qr_shapes.py`, implement `_eye_border_primitives(border, ox, oy)` for all 7 values per the research §5 table. It returns `[outer RRect(ink=1), opening RRect(ink=0)]`.
   - `square` / `rounded` / `circle` / `teardrop` / `leaf` use the table's r and corner flags.
-  - `leaf_circle` uses the `leaf` outer with a circle opening of r = 2.5.
-  - `square_circle` uses an r=0 outer with a circle opening of r = 2.5.
+  - `leaf_circle` and `square_circle` were dropped after T039's decode results (research §6).
   - Unknown values give `square`.
-- [ ] T035 [US2] In `qr_shapes.py`, implement `_eye_center_primitives(center, ox, oy)` for all 5 values per the research §5 table, as one 3×3 `RRect` at (+2,+2). Unknown values give `square`.
-- [ ] T036 [US2] In `qr_shapes.py`, extend `swatch_svg` with two kinds:
+- [X] T035 [US2] In `qr_shapes.py`, implement `_eye_center_primitives(center, ox, oy)` for all 5 values per the research §5 table, as one 3×3 `RRect` at (+2,+2). Unknown values give `square`.
+- [X] T036 [US2] In `qr_shapes.py`, extend `swatch_svg` with two kinds:
   - `kind='eye_border'` renders one 7×7 eye with that border and a square center.
   - `kind='eye_center'` renders one 7×7 eye with that center and a square border.
   - Both use the evenodd path from `to_svg`'s path builder and the same `<svg>` wrapper attributes as dot swatches.
-- [ ] T037 [US2] In `qr_generator.py`, extend the cached `shape_options` from T027 so it also builds the `eye_border` list from `EYE_BORDERS` with `swatch_svg('eye_border', v)` and the `eye_center` list from `EYE_CENTERS` with `swatch_svg('eye_center', v)`.
-- [ ] T038 [US2] In `templates/qr_generator.html`, add the "Eye border" and "Eye center" sub-groups to the "Shape style" block, after "Dots". Use the same `.shape-opts` / `.shape-opt` markup pattern and loop over `shape_options['eye_border']` and `shape_options['eye_center']` with radios named `eye_border` and `eye_center`, `square` checked. The JS from T029 already collects them and re-generates on change, so no new JS should be needed. Verify this.
-- [ ] T039 [US2] Run `python3 -m pytest` (T031–T033 plus the full suite). Then open `/generator` and compare the 7 border swatches with `specs/001-qr-shape-styles/assets/eye-border-styles.png` in order and silhouette, and check that each center has the same orientation as its matching border (SC-006). Tune the eye constants if needed, re-run the tests, and record any changes in research.md §5.
+- [X] T037 [US2] In `qr_generator.py`, extend the cached `shape_options` from T027 so it also builds the `eye_border` list from `EYE_BORDERS` with `swatch_svg('eye_border', v)` and the `eye_center` list from `EYE_CENTERS` with `swatch_svg('eye_center', v)`.
+- [X] T038 [US2] In `templates/qr_generator.html`, add the "Eye border" and "Eye center" sub-groups to the "Shape style" block, after "Dots". Use the same `.shape-opts` / `.shape-opt` markup pattern and loop over `shape_options['eye_border']` and `shape_options['eye_center']` with radios named `eye_border` and `eye_center`, `square` checked. The JS from T029 already collects them and re-generates on change, so no new JS should be needed. Verify this.
+- [X] T039 [US2] Run `python3 -m pytest` (T031–T033 plus the full suite). Then open `/generator` and compare the 5 border swatches with `specs/001-qr-shape-styles/assets/eye-border-styles.png` in order and silhouette, and check that each center has the same orientation as its matching border (SC-006). Tune the eye constants if needed, re-run the tests, and record any changes in research.md §5.
 
-**Checkpoint**: US1 and US2 both work independently and together. All 315 combinations decode.
+**Checkpoint**: US1 and US2 both work independently and together. All 225 combinations render; the 117 decoder-safe ones decode.
 
 ---
 
@@ -327,7 +327,7 @@ Task: "T042 [US3] Wire _parse_shape_style into qr_image_get in qr_generator.py"
 
 1. Setup + Foundational: nothing changes for users.
 2. US1: dot shapes. Ship the MVP.
-3. US2: eye styles, with the 315-combo decode gate. Ship.
+3. US2: eye styles, with the decoder-safe decode gate. Ship.
 4. US3: `/api/qr` params for embedders. Ship with the Polish docs (FR-016).
 
 ---
@@ -335,7 +335,7 @@ Task: "T042 [US3] Wire _parse_shape_style into qr_image_get in qr_generator.py"
 ## Notes
 
 - [P] means different files with no incomplete dependencies. Many tasks share `qr_shapes.py` or `qr_generator.py` and are deliberately sequential.
-- If a decode test fails for a combination, tune the geometry constants (research §5 allows this). Don't drop the combination: SC-001 requires all 315.
+- If a decoder-safe combination fails to decode, tune the geometry constants (research §5 allows this) rather than moving it out of the safe set. Changing the safe set is a spec change (SC-001).
 - Never modify the legacy branch in `_make_qr_png` or `_make_qr_svg`. If a byte-identity test fails, the guard in T016 is wrong.
 - After deploying, if a styled URL looks wrong publicly but is correct against the container, suspect the Cloudflare edge cache (CLAUDE.md gotcha).
 - Commit after each checkpoint.

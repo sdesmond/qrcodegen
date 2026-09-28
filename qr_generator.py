@@ -279,9 +279,12 @@ def _make_barcode_buf(fmt, data, output_fmt, bar_height, margin, show_text):
 
 
 def _build_shape_options():
+    groups = (('dot_shape', 'dot', qr_shapes.DOT_SHAPES),
+              ('eye_border', 'eye_border', qr_shapes.EYE_BORDERS),
+              ('eye_center', 'eye_center', qr_shapes.EYE_CENTERS))
     return {
-        'dot_shape': [(v, qr_shapes.display_name('dot', v), qr_shapes.swatch_svg('dot', v))
-                      for v in qr_shapes.DOT_SHAPES],
+        param: [(v, qr_shapes.display_name(kind, v), qr_shapes.swatch_svg(kind, v)) for v in values]
+        for param, kind, values in groups
     }
 
 
