@@ -514,3 +514,20 @@ class TestEyeSwatches:
             assert root.get('fill') == 'currentColor'
             paths = root.findall(SVG_NS + 'path')
             assert paths and all(p.get('fill-rule') == 'evenodd' for p in paths)
+
+
+# ── Performance (SC-005) ─────────────────────────────────────────────────────
+
+@pytest.mark.parametrize('style', [ShapeStyle('extra_rounded'),
+                                   ShapeStyle('square', 'teardrop', 'teardrop'),
+                                   ShapeStyle('dots', 'circle', 'circle')])
+def test_styled_render_perf(style):
+    import statistics
+    import time
+    from qr_generator import _make_qr_png
+    times = []
+    for _ in range(5):
+        start = time.perf_counter()
+        _make_qr_png(URL, ERROR_CORRECT_M, 300, 4, '#000000', '#ffffff', shape=style)
+        times.append(time.perf_counter() - start)
+    assert statistics.median(times) <= 0.050

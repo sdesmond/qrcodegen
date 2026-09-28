@@ -248,16 +248,16 @@ If shipping at this point: the parser already accepts `eye_border`/`eye_center` 
 
 **Purpose**: Docs (FR-016), compatibility, performance, and the final end-to-end validation.
 
-- [ ] T045 [P] In `README.md`, add `dot_shape`, `eye_border`, `eye_center` rows to the `/api/qr` parameter table, with allowed values, the default, and the fallback rule. Add an example styled `<img src>` URL that uses `example.com`, not lnklab.us. Note that contrast between fg/bg and thin shapes (dots, bars, gapped squares) is the caller's responsibility (spec Edge Cases).
-- [ ] T046 [P] In `CLAUDE.md`:
+- [X] T045 [P] In `README.md`, add `dot_shape`, `eye_border`, `eye_center` rows to the `/api/qr` parameter table, with allowed values, the default, and the fallback rule. Add an example styled `<img src>` URL that uses `example.com`, not lnklab.us. Note that contrast between fg/bg and thin shapes (dots, bars, gapped squares) is the caller's responsibility (spec Edge Cases).
+- [X] T046 [P] In `CLAUDE.md`:
   - Add the three params to the `/api/qr` query-param sentence in "Routes".
   - Add `qr_shapes.py  # shape geometry + PNG/SVG backends for styled QR` to "Repo layout" and `test_shapes.py` to the tests line.
   - Add a Conventions bullet saying styled rendering goes through `qr_shapes.build_primitives` and that the all-square style must keep the legacy path byte-identical.
-- [ ] T047 [P] In `docs/INTEGRATIONS.md`, document the shape params for embedders, with a styled example URL, a note that existing URLs render identically and stay cache-stable, and the same contrast-responsibility note as T045.
-- [ ] T048 [P] Run the full test suite inside the production image: `docker compose build`, then run `pip install -r requirements-dev.txt && python -m pytest` in a `python:3.14-slim` container with the repo mounted. Confirm `qr_shapes.py` is copied into the image (T003) by starting the container and requesting a styled `/api/qr` URL.
-- [ ] T049 [P] Check performance (SC-005, plan's ≤ ~50 ms goal). Time `_make_qr_png` for `extra_rounded` / `teardrop` / `leaf` at size 300 and for the worst case (a 2000-char payload, EC `H`, size 2000). Record the numbers in the PR description. Add a test `test_styled_render_perf` that asserts the median of 5 renders at size 300 is ≤ 50 ms (SC-005); if it fails, profile `_draw_rrect`.
+- [X] T047 [P] In `docs/INTEGRATIONS.md`, document the shape params for embedders, with a styled example URL, a note that existing URLs render identically and stay cache-stable, and the same contrast-responsibility note as T045.
+- [X] T048 [P] Run the full test suite inside the production image: `docker compose build`, then run `pip install -r requirements-dev.txt && python -m pytest` in a `python:3.14-slim` container with the repo mounted. Confirm `qr_shapes.py` is copied into the image (T003) by starting the container and requesting a styled `/api/qr` URL.
+- [X] T049 [P] Check performance (SC-005, plan's ≤ ~50 ms goal). Time `_make_qr_png` for `extra_rounded` / `teardrop` / `leaf` at size 300 and for the worst case (a 2000-char payload, EC `H`, size 2000). Record the numbers in the PR description. Add a test `test_styled_render_perf` that asserts the median of 5 renders at size 300 is ≤ 50 ms (SC-005); if it fails, profile `_draw_rrect`.
 - [ ] T050 Run all of `specs/001-qr-shape-styles/quickstart.md`: §2 the automated suite, §3 the contract checks, §4 the visual comparison, §5 the manual end-to-end including phone scans of the PNG and SVG downloads and the under-30 s timing, and §6 the log check. Note any deviations.
-- [ ] T051 Final `python3 -m pytest` run. The full suite must pass before merge (Principle V).
+- [X] T051 Final `python3 -m pytest` run. The full suite must pass before merge (Principle V).
 
 ---
 

@@ -7,6 +7,42 @@ unavailable.
 
 ---
 
+## Embedding QR images (`GET /api/qr`)
+
+External pages embed a QR with a plain image URL. The response is raw image bytes
+(`image/png` or `image/svg+xml`) with `Cache-Control: public, max-age=86400, immutable`,
+so Cloudflare serves repeats from the edge.
+
+```html
+<img src="https://qrcode.chrisrmiller.com/api/qr?data=https://example.com/abc" alt="QR code">
+```
+
+Parameters: `data` (required), `format`, `size`, `margin`, `fg_color`, `bg_color`,
+`ec_level`, plus the optional shape styles:
+
+| Parameter | Values | Default |
+|---|---|---|
+| `dot_shape` | `square`, `rounded`, `extra_rounded`, `dots`, `classy`, `classy_rounded`, `horizontal_bars`, `vertical_bars`, `gapped_square` | `square` |
+| `eye_border` | `square`, `rounded`, `circle`, `teardrop`, `leaf` | `square` |
+| `eye_center` | `square`, `rounded`, `circle`, `teardrop`, `leaf` | `square` |
+
+```html
+<img src="https://qrcode.chrisrmiller.com/api/qr?data=https://example.com/abc&dot_shape=dots&eye_border=circle&eye_center=circle" alt="QR code">
+```
+
+- **Existing URLs are unaffected.** A URL without shape params renders exactly as it did
+  before shapes existed, so cached and printed codes stay stable.
+- **Invalid values never fail.** Unknown or differently-cased shape values fall back to
+  `square` for that parameter. Only a missing `data` returns 400.
+- **Keep URLs canonical.** Each distinct query string is cached separately, so pick one
+  spelling per image and reuse it.
+- **Scannability is the caller's call.** The most widely readable eye pairs are a `square`
+  or `rounded` border with any center, or a `circle` border with a `rounded`, `circle`, or
+  `teardrop` center; some zxing-based scanner apps struggle with other pairs. Thin dot
+  shapes also need good contrast between `fg_color` and `bg_color`.
+
+---
+
 ## URL Shortener (planned)
 
 When deployed, the shortener will be a **separate application** with its
