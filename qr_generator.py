@@ -12,6 +12,9 @@ import barcode
 from barcode.writer import ImageWriter, SVGWriter
 from flask import Blueprint, render_template, request, send_file, jsonify
 
+import qr_shapes
+from qr_shapes import ShapeStyle, DOT_SHAPE_SET, EYE_BORDER_SET, EYE_CENTER_SET
+
 qr_bp = Blueprint('qr', __name__)
 
 
@@ -84,6 +87,16 @@ _HEX_COLOR_RE = re.compile(r'^#[0-9a-fA-F]{6}$')
 
 def _safe_color(value, default):
     return value if _HEX_COLOR_RE.match(value or '') else default
+
+
+def _parse_shape_style(src):
+    """Whitelist the dot/eye shape params; anything unrecognised becomes 'square'."""
+    def pick(key, allowed):
+        value = (src.get(key) or '')[:32]
+        return value if value in allowed else qr_shapes.DEFAULT
+    return ShapeStyle(pick('dot_shape', DOT_SHAPE_SET),
+                      pick('eye_border', EYE_BORDER_SET),
+                      pick('eye_center', EYE_CENTER_SET))
 
 
 def _safe_int(value, default, lo, hi):
@@ -210,10 +223,15 @@ def _parse_common(form):
     fg = _safe_color(form.get('fg_color'), '#000000')
     bg = _safe_color(form.get('bg_color'), '#ffffff')
     ec = ERROR_LEVELS.get(form.get('ec_level', 'M'), ERROR_CORRECT_M)
-    return output_fmt, size, margin, fg, bg, ec
+    shape = _parse_shape_style(form)
+    return output_fmt, size, margin, fg, bg, ec, shape
 
 
-def _make_qr_png(data, ec, size, margin, fg, bg):
+def _make_qr_png(data, ec, size, margin, fg, bg, shape=None):
+    if shape is not None and not shape.is_default:
+        matrix = qr_shapes.get_matrix(data, ec)
+        dots, eyes = qr_shapes.build_primitives(matrix, shape)
+        return qr_shapes.rasterize_png(dots, eyes, len(matrix), margin, size, fg, bg)
     box_size = max(1, size // (21 + margin * 2))
     qr = qrcode.QRCode(error_correction=ec, box_size=box_size, border=margin)
     qr.add_data(data)
@@ -226,7 +244,11 @@ def _make_qr_png(data, ec, size, margin, fg, bg):
     return buf
 
 
-def _make_qr_svg(data, ec, size, margin):
+def _make_qr_svg(data, ec, size, margin, shape=None):
+    if shape is not None and not shape.is_default:
+        matrix = qr_shapes.get_matrix(data, ec)
+        dots, eyes = qr_shapes.build_primitives(matrix, shape)
+        return qr_shapes.to_svg(dots, eyes, len(matrix), margin, size)
     box_size = max(1, size // (21 + margin * 2))
     factory = qrcode.image.svg.SvgImage
     img = qrcode.make(data, error_correction=ec, box_size=box_size,
@@ -261,7 +283,7 @@ def generator():
 def generate():
     form = request.form
     fmt = form.get('format', 'qrcode')
-    output_fmt, size, margin, fg, bg, ec = _parse_common(form)
+    output_fmt, size, margin, fg, bg, ec, shape = _parse_common(form)
 
     source = _req_source()
     try:
@@ -356,7 +378,7 @@ def qr_image_get():
 def download():
     form = request.form
     fmt = form.get('format', 'qrcode')
-    output_fmt, size, margin, fg, bg, ec = _parse_common(form)
+    output_fmt, size, margin, fg, bg, ec, shape = _parse_common(form)
 
     source = _req_source()
     try:

@@ -1,5 +1,61 @@
 """Integration tests for the Flask routes."""
 import base64
+import io
+import os
+import re
+from importlib import metadata
+
+import pytest
+from PIL import Image
+from qrcode.constants import ERROR_CORRECT_M, ERROR_CORRECT_H
+
+from qr_generator import _make_qr_png, _make_qr_svg
+from qr_shapes import ShapeStyle
+
+FIXTURE_DIR = os.path.join(os.path.dirname(__file__), 'fixtures', 'legacy')
+
+# (fixture file, /api/qr query string, kind, positional render args)
+LEGACY_CASES = [
+    ('url_png.png', 'data=https://example.com/abc', 'png',
+     ('https://example.com/abc', ERROR_CORRECT_M, 300, 4, '#000000', '#ffffff')),
+    ('hello_svg.svg', 'data=hello&format=svg', 'svg',
+     ('hello', ERROR_CORRECT_M, 300, 4)),
+    ('x_800_m0_fg_H.png', 'data=x&size=800&margin=0&fg_color=%23112233&ec_level=H', 'png',
+     ('x', ERROR_CORRECT_H, 800, 0, '#112233', '#ffffff')),
+]
+LEGACY_IDS = [c[0] for c in LEGACY_CASES]
+
+
+def _fixture_versions():
+    with open(os.path.join(FIXTURE_DIR, 'README.md'), encoding='utf-8') as f:
+        text = f.read()
+    return {name: re.search(rf'- {name}: (\S+)', text).group(1) for name in ('Pillow', 'qrcode')}
+
+
+def _require_fixture_versions():
+    want = _fixture_versions()
+    have = {'Pillow': metadata.version('Pillow'), 'qrcode': metadata.version('qrcode')}
+    if want != have:
+        pytest.skip(f'legacy fixtures captured with {want}, installed {have}; re-capture them')
+
+
+def _read_fixture(name):
+    with open(os.path.join(FIXTURE_DIR, name), 'rb') as f:
+        return f.read()
+
+
+def _same_image(kind, a, b):
+    """PNG: compare decoded pixels (zlib output varies by platform). SVG: exact bytes."""
+    if kind == 'svg':
+        return a == b
+    ia = Image.open(io.BytesIO(a)).convert('RGB')
+    ib = Image.open(io.BytesIO(b)).convert('RGB')
+    return ia.size == ib.size and ia.tobytes() == ib.tobytes()
+
+
+def _render(kind, args, **kw):
+    fn = _make_qr_svg if kind == 'svg' else _make_qr_png
+    return fn(*args, **kw).getvalue()
 
 
 # ── /generator (UI) ──────────────────────────────────────────────────────────
@@ -272,3 +328,16 @@ class TestSecurityHeaders:
         })
         assert rv.headers.get('X-Content-Type-Options') == 'nosniff'
         assert 'Content-Security-Policy' in rv.headers
+
+
+# ── Legacy output is unchanged (SC-002, FR-011) ──────────────────────────────
+
+class TestLegacyIdentity:
+    @pytest.mark.parametrize('name,query,kind,args', LEGACY_CASES, ids=LEGACY_IDS)
+    def test_explicit_all_square_equals_no_shape(self, name, query, kind, args):
+        assert _render(kind, args) == _render(kind, args, shape=ShapeStyle('square', 'square', 'square'))
+
+    @pytest.mark.parametrize('name,query,kind,args', LEGACY_CASES, ids=LEGACY_IDS)
+    def test_no_shape_matches_pre_feature_fixture(self, name, query, kind, args):
+        _require_fixture_versions()
+        assert _same_image(kind, _render(kind, args), _read_fixture(name))

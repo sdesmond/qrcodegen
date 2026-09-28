@@ -38,10 +38,10 @@ These apply to all tasks below:
 
 **Purpose**: Tooling, baseline capture, and the empty new module.
 
-- [ ] T001 Capture pre-feature baseline hashes per `specs/001-qr-shape-styles/quickstart.md` §1. Run the app from current `main` and save the sha256 of the three `/api/qr` requests to `/tmp/qr-baseline.txt`. Also save the raw response bytes of those requests as fixtures in `tests/fixtures/legacy/` (`url_png.png`, `hello_svg.svg`, `x_800_m0_fg_H.png`) along with a `tests/fixtures/legacy/README.md` that lists the exact query string for each file and the installed `Pillow` and `qrcode` versions the fixtures were captured with.
-- [ ] T002 [P] Add `zxing-cpp` to `requirements-dev.txt`. It must not go in `requirements.txt`.
-- [ ] T003 [P] Add `COPY qr_shapes.py .` next to the existing `COPY qr_generator.py .` line in `Dockerfile`.
-- [ ] T004 [P] Create `qr_shapes.py` at the repo root with a module docstring saying it holds pure geometry plus the PNG/SVG backends for styled QR codes and has no Flask imports. Leave everything else empty.
+- [X] T001 Capture pre-feature baseline hashes per `specs/001-qr-shape-styles/quickstart.md` §1. Run the app from current `main` and save the sha256 of the three `/api/qr` requests to `/tmp/qr-baseline.txt`. Also save the raw response bytes of those requests as fixtures in `tests/fixtures/legacy/` (`url_png.png`, `hello_svg.svg`, `x_800_m0_fg_H.png`) along with a `tests/fixtures/legacy/README.md` that lists the exact query string for each file and the installed `Pillow` and `qrcode` versions the fixtures were captured with.
+- [X] T002 [P] Add `zxing-cpp` to `requirements-dev.txt`. It must not go in `requirements.txt`.
+- [X] T003 [P] Add `COPY qr_shapes.py .` next to the existing `COPY qr_generator.py .` line in `Dockerfile`.
+- [X] T004 [P] Create `qr_shapes.py` at the repo root with a module docstring saying it holds pure geometry plus the PNG/SVG backends for styled QR codes and has no Flask imports. Leave everything else empty.
 
 ---
 
@@ -53,13 +53,13 @@ These apply to all tasks below:
 
 ### Tests for Foundation (write first; they must fail)
 
-- [ ] T005 [P] In `tests/test_helpers.py`, add `_parse_shape_style` tests:
+- [X] T005 [P] In `tests/test_helpers.py`, add `_parse_shape_style` tests:
   - Missing keys give `ShapeStyle('square','square','square')`.
   - Every whitelisted value for each field is accepted.
   - Differently-cased values (`Dots`, `CIRCLE`), unknown values, the empty string, and values over 32 chars all fall back to `square`, and only for that field (FR-012, FR-004).
   - It works with both a dict and a werkzeug `MultiDict`.
   - `ShapeStyle.is_default` is True only when all three fields are `square`.
-- [ ] T006 [P] Create `tests/test_shapes.py` with the foundational geometry and backend units:
+- [X] T006 [P] Create `tests/test_shapes.py` with the foundational geometry and backend units:
   - The whitelist tuples `DOT_SHAPES`, `EYE_BORDERS`, `EYE_CENTERS` have exactly the values in contract order, with lengths 9, 7, and 5.
   - `RRect` fields match data-model.md.
   - `build_primitives(matrix, ShapeStyle('square','square','square'))` gives zero dot primitives inside the three 7×7 finder boxes and exactly one 1×1 dot per other dark module.
@@ -70,43 +70,43 @@ These apply to all tasks below:
   - `to_svg` returns text that parses as XML (`xml.etree.ElementTree`) with an `svg` root, a `viewBox`, at least one `<path>`, no `<image>`, and an eyes path that has `fill-rule="evenodd"`.
   - `to_svg`'s `width`/`height` equal the legacy `_make_qr_svg` values (mm units) for the same data, size, and margin, e.g. `33mm` at size 300, margin 4 for a 25-module code.
   - **SVG structure matches geometry**: for a few hand-built primitive lists (a sharp rect, a fully rounded circle, a TL+BR classy rect, and an eye ring), the number of subpaths (`M` commands) in each `<path>` equals the number of primitives, each subpath starts at the expected coordinate, and a rounded corner emits an `A` command while a sharp corner does not. This catches arc and sweep-flag bugs that PNG decode tests can't see.
-- [ ] T007 [P] In `tests/test_routes.py`, add legacy byte-identity tests (SC-002, FR-011, contract rule 5):
+- [X] T007 [P] In `tests/test_routes.py`, add legacy byte-identity tests (SC-002, FR-011, contract rule 5):
   - **Always on (same-run)**: for each T001 query, output with no `shape` argument equals output with `shape=ShapeStyle('square','square','square')`, for both `_make_qr_png` and `_make_qr_svg`.
   - **Fixture check**: output with no `shape` argument equals the T001 fixture bytes. Skip with a clear message when the installed `Pillow` or `qrcode` version differs from the versions in `tests/fixtures/legacy/README.md`, so a dependency upgrade doesn't fail the suite. Re-capture the fixtures after an upgrade.
 
 ### Implementation for Foundation
 
-- [ ] T008 In `qr_shapes.py`, define:
+- [X] T008 In `qr_shapes.py`, define:
   - The ordered tuples `DOT_SHAPES`, `EYE_BORDERS`, `EYE_CENTERS`, with values in contract order, plus matching `frozenset`s for lookup.
   - `DEFAULT = 'square'`.
   - `class ShapeStyle(NamedTuple)` with fields `dot`, `eye_border`, `eye_center` (all defaulting to `'square'`) and an `is_default` property.
   - A human display-name map for each value (e.g. `extra_rounded` → "Extra rounded", `leaf_circle` → "Leaf, round opening", `square_circle` → "Square, round opening"), using the names from spec FR-001 to FR-003.
-- [ ] T009 In `qr_shapes.py`, define `class RRect(NamedTuple)`: `x, y, w, h, r` as floats, `corners` as a tuple of 4 bools in the order TL, TR, BR, BL, and `ink` as an int (1 paints, 0 cuts). Add a helper `circle(cx, cy, d, ink=1)` that returns an `RRect` with `r = d/2` and all corners set.
-- [ ] T010 In `qr_shapes.py`, implement `get_matrix(data, ec)`. It builds `qrcode.QRCode(error_correction=ec, border=0)`, calls `add_data` and `make(fit=True)`, and returns `get_matrix()` as a list of lists of bool. Also implement `finder_boxes(n)`, which returns the three 7×7 origins `(0,0)`, `(n-7,0)`, `(0,n-7)`, and `is_finder(x, y, n)`.
-- [ ] T011 In `qr_shapes.py`, implement `build_primitives(matrix, style)`, which returns `(dots, eyes)` per data-model.md "Render plan".
+- [X] T009 In `qr_shapes.py`, define `class RRect(NamedTuple)`: `x, y, w, h, r` as floats, `corners` as a tuple of 4 bools in the order TL, TR, BR, BL, and `ink` as an int (1 paints, 0 cuts). Add a helper `circle(cx, cy, d, ink=1)` that returns an `RRect` with `r = d/2` and all corners set.
+- [X] T010 In `qr_shapes.py`, implement `get_matrix(data, ec)`. It builds `qrcode.QRCode(error_correction=ec, border=0)`, calls `add_data` and `make(fit=True)`, and returns `get_matrix()` as a list of lists of bool. Also implement `finder_boxes(n)`, which returns the three 7×7 origins `(0,0)`, `(n-7,0)`, `(0,n-7)`, and `is_finder(x, y, n)`.
+- [X] T011 In `qr_shapes.py`, implement `build_primitives(matrix, style)`, which returns `(dots, eyes)` per data-model.md "Render plan".
   - Loop over dark modules that aren't in a finder box and dispatch to `_dot_primitives(style.dot, x, y, nb)`. `nb` is a neighbour lookup for up, down, left, and right that treats finder modules and light modules as absent.
   - For each finder box, append `_eye_border_primitives(style.eye_border, ox, oy)` (outer, then opening) and `_eye_center_primitives(style.eye_center, ox, oy)`.
   - In this phase, only implement the `square` branch of each dispatcher: a 1×1 dot; a 7×7 outer at r=0 plus a 5×5 opening at (+1,+1) with ink 0; and a 3×3 center at (+2,+2). Any other value should temporarily fall through to the square geometry. US1 and US2 fill in the real branches.
-- [ ] T012 In `qr_shapes.py`, implement the PNG backend `rasterize_png(dots, eyes, n, margin, size, fg, bg) -> io.BytesIO` following research §2 and §3:
+- [X] T012 In `qr_shapes.py`, implement the PNG backend `rasterize_png(dots, eyes, n, margin, size, fg, bg) -> io.BytesIO` following research §2 and §3:
   - `_supersample_ppm(N, size) = clamp(ceil(3*size/N), 1, floor(4096/N))`, where `N = n + 2*margin`.
   - Create a black `L` mask of side `N*ppm`.
   - Draw each `RRect` offset by `margin` using `_draw_rrect(draw, rect, ppm, fill)`: two cross rectangles, each skipped when degenerate, plus one `pieslice` or R×R square per corner, with `R = min(r, w/2, h/2)` in px. Round coordinates to integer px once, at the corner coordinates. **Don't use `ImageDraw.rounded_rectangle`.** Fill is 255 for ink 1 and 0 for ink 0. Draw dots first, then eyes, in list order.
   - Resize the mask to `size×size` with `Image.LANCZOS`, then `Image.composite(Image.new('RGB', …, fg), Image.new('RGB', …, bg), mask)`.
   - Save as PNG to a `BytesIO` and seek to 0.
-- [ ] T013 In `qr_shapes.py`, implement the SVG backend `to_svg(dots, eyes, n, margin, size) -> io.BytesIO`.
+- [X] T013 In `qr_shapes.py`, implement the SVG backend `to_svg(dots, eyes, n, margin, size) -> io.BytesIO`.
   - The `svg` root has `xmlns`, `width` and `height` set to `size`, and `viewBox="0 0 N N"` in module units.
   - Emit one `<path d=…>` for the dots and one `<path fill-rule="evenodd" d=…>` for the eyes. The eye openings cut holes because of evenodd, so the ink-0 rects are emitted as ordinary subpaths.
   - Build each `RRect` subpath with `M`/`H`/`V` plus `A r r 0 0 1 x y` on rounded corners. Numbers use at most 3 decimals with trailing zeros stripped.
   - Keep today's SVG color and sizing behavior: black fill, no background rect, and `width`/`height` in mm computed like the legacy path: `box_size = max(1, size // (21 + 2*margin))`, then `box_size * N / 10` mm (research §2, spec Assumptions).
   - UTF-8 encode, then seek to 0.
-- [ ] T014 In `qr_generator.py`:
+- [X] T014 In `qr_generator.py`:
   - `from qr_shapes import ShapeStyle, DOT_SHAPES, EYE_BORDERS, EYE_CENTERS, …`
   - Add `_parse_shape_style(src)` next to `_safe_color`. It reads `dot_shape`, `eye_border`, `eye_center` via `src.get(key, '')`, truncates each to `[:32]`, does an exact frozenset membership check, and uses `'square'` otherwise. It returns a `ShapeStyle` and never raises.
-- [ ] T015 In `qr_generator.py`, extend `_parse_common(form)` to return a 7-tuple `(output_fmt, size, margin, fg, bg, ec, shape)`, where `shape = _parse_shape_style(form)`. Update the unpacking in both `generate()` and `download()` to match, without using `shape` yet, so behavior doesn't change. Update any existing `_parse_common` tests in `tests/test_helpers.py` for the new tuple length.
-- [ ] T016 In `qr_generator.py`, add a keyword argument `shape=None` to `_make_qr_png(data, ec, size, margin, fg, bg, shape=None)` and `_make_qr_svg(data, ec, size, margin, shape=None)`.
+- [X] T015 In `qr_generator.py`, extend `_parse_common(form)` to return a 7-tuple `(output_fmt, size, margin, fg, bg, ec, shape)`, where `shape = _parse_shape_style(form)`. Update the unpacking in both `generate()` and `download()` to match, without using `shape` yet, so behavior doesn't change. Update any existing `_parse_common` tests in `tests/test_helpers.py` for the new tuple length.
+- [X] T016 In `qr_generator.py`, add a keyword argument `shape=None` to `_make_qr_png(data, ec, size, margin, fg, bg, shape=None)` and `_make_qr_svg(data, ec, size, margin, shape=None)`.
   - Add a guard at the top: `if shape is None or shape.is_default:` then fall through to the **unchanged existing body**.
   - Otherwise, call `qr_shapes.get_matrix(data, ec)`, then `build_primitives(matrix, shape)`, then `rasterize_png(..., size, fg, bg)` or `to_svg(..., size)`, and return that buffer.
-- [ ] T017 Run `python3 -m pytest tests/test_helpers.py tests/test_shapes.py tests/test_routes.py`. T005–T007 must pass, and all pre-existing tests must still pass.
+- [X] T017 Run `python3 -m pytest tests/test_helpers.py tests/test_shapes.py tests/test_routes.py`. T005–T007 must pass, and all pre-existing tests must still pass.
 
 **Checkpoint**: The parser, geometry primitive, both backends, and dispatch all work. Default output is byte-identical to before, and user stories can begin.
 

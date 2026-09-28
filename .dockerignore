@@ -1,0 +1,15 @@
+.git/
+.venv/
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.env*
+*.log
+tests/
+specs/
+.specify/
+.claude/
+docs/
+Dockerfile*
+.dockerignore
