@@ -358,6 +358,15 @@ def qr_image_get():
       fg_color   (optional) — #rrggbb foreground, default #000000
       bg_color   (optional) — #rrggbb background, default #ffffff
       ec_level   (optional) — L | M | Q | H, default M
+      dot_shape  (optional) — square | rounded | extra_rounded | dots | classy |
+                              classy_rounded | horizontal_bars | vertical_bars |
+                              gapped_square, default square
+      eye_border (optional) — square | rounded | circle | teardrop | leaf, default square
+      eye_center (optional) — square | rounded | circle | teardrop | leaf, default square
+
+    Shape values are matched exactly (case-sensitive); anything else falls
+    back to square. Without shape params the output is unchanged from before
+    they existed.
     """
     args = request.args
     data = args.get('data', '')[:MAX_DATA_LEN]
@@ -372,16 +381,17 @@ def qr_image_get():
     fg = _safe_color(args.get('fg_color'), '#000000')
     bg = _safe_color(args.get('bg_color'), '#ffffff')
     ec = ERROR_LEVELS.get(args.get('ec_level', 'M'), ERROR_CORRECT_M)
+    shape = _parse_shape_style(args)
 
     try:
         if output_fmt == 'svg':
-            buf = _make_qr_svg(data, ec, size, margin)
+            buf = _make_qr_svg(data, ec, size, margin, shape=shape)
             mime = 'image/svg+xml'
         else:
-            buf = _make_qr_png(data, ec, size, margin, fg, bg)
+            buf = _make_qr_png(data, ec, size, margin, fg, bg, shape=shape)
             mime = 'image/png'
         _log_event(event='qr_embed', output_format=output_fmt, ec_level=args.get('ec_level', 'M'),
-                   size=size, source='api', status='success')
+                   size=size, **_shape_log_fields(shape), source='api', status='success')
         resp = send_file(buf, mimetype=mime)
         # Same payload always yields the same image — let CDNs cache it.
         resp.headers['Cache-Control'] = 'public, max-age=86400, immutable'

@@ -221,7 +221,7 @@ If shipping at this point: the parser already accepts `eye_border`/`eye_center` 
 
 ### Tests for User Story 3 (write first; they must fail)
 
-- [ ] T040 [P] [US3] In `tests/test_routes.py`, add `/api/qr` shape tests:
+- [X] T040 [P] [US3] In `tests/test_routes.py`, add `/api/qr` shape tests:
   - `?data=https://example.com/abc&dot_shape=dots&eye_border=circle&eye_center=circle` returns 200, `Content-Type: image/png`, and `Cache-Control: public, max-age=86400, immutable`, with a body that differs from the unstyled request (FR-013).
   - `format=svg&dot_shape=extra_rounded&eye_border=leaf` returns `image/svg+xml` with `<path` and no `<image`.
   - The three T001 fixture queries, with no shape params, return bytes equal to `tests/fixtures/legacy/*` (SC-002).
@@ -229,16 +229,16 @@ If shipping at this point: the parser already accepts `eye_border`/`eye_center` 
   - `dot_shape=Dots&eye_border=nope` is byte-identical to the fixture (US3 scenario 3, FR-012).
   - Shape values never give a 4xx or 5xx, including 1000-char garbage values.
   - Missing `data` still returns 400.
-- [ ] T041 [P] [US3] In `tests/test_routes.py`, add a `qr_embed` log test. A styled `/api/qr` success event includes the normalized `dot_shape`, `eye_border`, `eye_center` and never includes `data`.
+- [X] T041 [P] [US3] In `tests/test_routes.py`, add a `qr_embed` log test. A styled `/api/qr` success event includes the normalized `dot_shape`, `eye_border`, `eye_center` and never includes `data`.
 
 ### Implementation for User Story 3
 
-- [ ] T042 [US3] In `qr_generator.py` `qr_image_get()`:
+- [X] T042 [US3] In `qr_generator.py` `qr_image_get()`:
   - Call `shape = _parse_shape_style(args)` after the existing param parsing, and pass `shape=shape` into `_make_qr_png` and `_make_qr_svg`.
   - Add `dot_shape=shape.dot, eye_border=shape.eye_border, eye_center=shape.eye_center` to the success `_log_event(event='qr_embed', …)`.
   - Leave the `send_file` call and the `Cache-Control` header exactly as they are.
-- [ ] T043 [US3] In `qr_generator.py`, extend the `qr_image_get()` docstring's "Query params" list with `dot_shape`, `eye_border`, `eye_center`, their allowed values, and the default `square`, noting the case-sensitive fallback.
-- [ ] T044 [US3] Run `python3 -m pytest` (T040–T041 plus the full suite), then run quickstart.md §3 contract checks against a local server. The legacy hashes must match `/tmp/qr-baseline.txt`, and the styled embed must keep its headers.
+- [X] T043 [US3] In `qr_generator.py`, extend the `qr_image_get()` docstring's "Query params" list with `dot_shape`, `eye_border`, `eye_center`, their allowed values, and the default `square`, noting the case-sensitive fallback.
+- [X] T044 [US3] Run `python3 -m pytest` (T040–T041 plus the full suite), then run quickstart.md §3 contract checks against a local server. The legacy hashes must match `/tmp/qr-baseline.txt`, and the styled embed must keep its headers.
 
 **Checkpoint**: All three user stories work independently.
 

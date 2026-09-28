@@ -598,3 +598,70 @@ class TestEyeShapeRoutes:
         labels = _option_labels(section, name)
         assert len(labels) == len(values)
         assert all('<svg' in lab for lab in labels)
+
+
+# ── US3: GET /api/qr shape params (FR-010, FR-013) ───────────────────────────
+
+CACHE = 'public, max-age=86400, immutable'
+
+
+class TestQrEmbedShapes:
+    def test_styled_png_keeps_type_and_cache(self, client):
+        plain = client.get('/api/qr?data=https://example.com/abc')
+        rv = client.get('/api/qr?data=https://example.com/abc'
+                        '&dot_shape=dots&eye_border=circle&eye_center=circle')
+        assert rv.status_code == 200
+        assert rv.headers['Content-Type'] == 'image/png'
+        assert rv.headers['Cache-Control'] == CACHE
+        assert 'attachment' not in rv.headers.get('Content-Disposition', '')
+        assert rv.data != plain.data
+
+    def test_styled_svg_is_vector(self, client):
+        rv = client.get('/api/qr?data=hi&format=svg&dot_shape=extra_rounded&eye_border=leaf')
+        assert rv.status_code == 200
+        assert rv.mimetype == 'image/svg+xml'
+        assert rv.headers['Cache-Control'] == CACHE
+        assert b'<path' in rv.data
+        assert b'<image' not in rv.data
+
+    @pytest.mark.parametrize('name,query,kind,args', LEGACY_CASES, ids=LEGACY_IDS)
+    def test_unstyled_matches_pre_feature_fixture(self, client, name, query, kind, args):
+        _require_fixture_versions()
+        rv = client.get('/api/qr?' + query)
+        assert _same_image(kind, rv.data, _read_fixture(name))
+
+    @pytest.mark.parametrize('name,query,kind,args', LEGACY_CASES, ids=LEGACY_IDS)
+    @pytest.mark.parametrize('shape_qs', [
+        '&dot_shape=square&eye_border=square&eye_center=square',
+        '&dot_shape=Dots&eye_border=nope',
+        '&eye_border=leaf_circle&eye_center=square_circle',
+    ])
+    def test_default_or_invalid_shapes_are_byte_identical(self, client, name, query, kind,
+                                                          args, shape_qs):
+        plain = client.get('/api/qr?' + query)
+        rv = client.get('/api/qr?' + query + shape_qs)
+        assert rv.status_code == 200
+        assert rv.data == plain.data
+
+    def test_garbage_shape_values_never_error(self, client):
+        junk = 'x' * 1000
+        for key in ('dot_shape', 'eye_border', 'eye_center'):
+            rv = client.get(f'/api/qr?data=hi&{key}={junk}')
+            assert rv.status_code == 200
+            assert rv.headers['Cache-Control'] == CACHE
+
+    def test_missing_data_still_400(self, client):
+        rv = client.get('/api/qr?dot_shape=dots')
+        assert rv.status_code == 400
+        assert 'Cache-Control' not in rv.headers or 'immutable' not in rv.headers['Cache-Control']
+
+
+class TestQrEmbedLogging:
+    def test_embed_event_has_normalized_shapes(self, client, events):
+        client.get('/api/qr?data=https://example.com/secret-token-9'
+                   '&dot_shape=classy&eye_border=Circle&eye_center=leaf')
+        ev = events[-1]
+        assert ev['event'] == 'qr_embed'
+        assert ev['status'] == 'success'
+        assert (ev['dot_shape'], ev['eye_border'], ev['eye_center']) == ('classy', 'square', 'leaf')
+        assert 'secret-token-9' not in repr(ev)
