@@ -64,8 +64,9 @@ This is internal to `qr_shapes.py`. It is not exposed by any API.
 
 - `rasterize_png(dots, eyes, n, margin, size, fg, bg)` returns PNG bytes. It uses a supersampled
   `L` mask with the canvas capped at 4096 px, then does a LANCZOS resize and composites.
-- `to_svg(dots, eyes, n, margin, width_attr)` returns SVG text: a viewBox in module units, a
-  dots `<path>`, and an eyes `<path fill-rule="evenodd">`.
+- `to_svg(dots, eyes, n, margin, size)` returns SVG text: a viewBox in module units, mm
+  `width`/`height` computed like the legacy SVG (research §2), a dots `<path>`, and an eyes
+  `<path fill-rule="evenodd">`.
 
 Both consumers read the same primitive lists. The geometry-parity test depends on this.
 

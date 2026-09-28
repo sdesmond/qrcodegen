@@ -7,7 +7,8 @@ These are runnable checks that show the feature works end to end. For parameter 
 
 ## 0. Prerequisites
 
-Local Python currently has no project dependencies installed, so create a venv first:
+Production and local dev both run Python 3.14. Local Python has no project dependencies
+installed, so create a venv first:
 
 ```bash
 python3 -m venv .venv

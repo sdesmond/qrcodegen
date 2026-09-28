@@ -16,7 +16,8 @@ Technical approach (see [research.md](research.md)):
   a **rounded rectangle with per-corner flags** in module units, emitted by a new pure-Python
   module `qr_shapes.py`.
 - Draw that single geometry two ways. **PNG** goes to a supersampled Pillow `L` mask, which is
-  downscaled with LANCZOS and composited fg-over-bg. **SVG** goes to vector `<path>` data.
+  downscaled with LANCZOS and composited fg-over-bg. **SVG** goes to vector `<path>` data, sized
+  in mm exactly like the legacy SVG.
   No new runtime dependencies.
 - When all three choices are `square`, which is the default, `_make_qr_png` / `_make_qr_svg`
   take the **existing code path unchanged**. That gives byte-identical output for existing
@@ -28,8 +29,8 @@ Technical approach (see [research.md](research.md)):
 
 ## Technical Context
 
-**Language/Version**: Python 3.9 in production (`python:3.9-slim`), so code MUST stay
-3.9-compatible (no `match`, no `X | Y` annotations). Local dev currently has Python 3.14.
+**Language/Version**: Python 3.14 in production (`python:3.14-slim`, upgraded from 3.9 on branch
+`chore/python-3.14`), matching local dev. This feature depends on that upgrade landing first.
 
 **Primary Dependencies**: Flask, `qrcode[pil]` (matrix only on the styled path), Pillow ≥10
 (`ImageDraw` rectangle/pieslice), python-barcode (unchanged). **No new runtime deps.**
@@ -44,16 +45,17 @@ for the FR-014 / SC-001 exhaustive 315-combination decode test.
 **Project Type**: Single-container web service (Flask blueprint + one Jinja template).
 
 **Performance Goals**: Styled render ≤ ~50 ms at default size (spike: ~5 ms for a 300 px
-URL code). Preview responsiveness unchanged (SC-005).
+URL code). This is the SC-005 threshold.
 
 **Constraints**: The supersample canvas side is capped at 4096 px (≤16 MiB `L` mask) for every
 input within `MAX_SIZE` / `MAX_DATA_LEN`. `/api/qr` response type and cache headers are
-unchanged (FR-013). Styled SVG keeps today's SVG color behavior: black shapes, no background
-(spec Assumptions).
+unchanged (FR-013). Styled SVG keeps today's SVG color and sizing behavior: black shapes, no
+background, `width`/`height` in mm computed like the legacy path (spec Assumptions).
 
 **Scale/Scope**: 9 × 7 × 5 = 315 combinations. The changes touch `qr_generator.py`,
 the new `qr_shapes.py`, `templates/qr_generator.html`, `Dockerfile` (COPY the new module), tests,
-and docs (`README.md`, `CLAUDE.md`, `docs/INTEGRATIONS.md`).
+and docs (`README.md`, `CLAUDE.md`, `docs/INTEGRATIONS.md`). The `Dockerfile` base-image upgrade to
+3.14 is a separate prerequisite change, not part of this feature.
 
 No NEEDS CLARIFICATION items remain. All were resolved in [research.md](research.md).
 

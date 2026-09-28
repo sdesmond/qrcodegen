@@ -1,6 +1,6 @@
 # Feature Specification: QR Code Shape Styles (Dots & Eyes)
 
-**Feature Branch**: `001-qr-shape-styles`
+**Feature Branch**: `001-qr-shape-styles` (git branch: `feat/add-qr-shapes`)
 
 **Created**: 2026-09-27
 
@@ -73,10 +73,10 @@ An integrating service (e.g., a URL shortener embedding QR images) wants to requ
 ### Edge Cases
 
 - Unknown, misspelled, or differently-cased shape values → fall back to the default (square) for that part; never an error.
-- Very small output sizes or very dense codes (long data, high error correction) with rounded, dot, or bar shapes → code must still render and remain scannable at the documented minimum size.
+- Very small output sizes or very dense codes (long data, high error correction) with rounded, dot, or bar shapes → code must still render. It must decode at the minimum size (100 px) for short payloads (up to ~20 characters), and at 600 px for dense payloads (~300 characters, error correction H). Larger payloads at smaller sizes have too few pixels per module to scan reliably even unstyled, and are not guaranteed.
 - Margin of 0 → shaped eyes must not be clipped at the image edge.
 - Barcode (non-QR) formats → shape options are hidden in the UI and ignored by the API.
-- Low-contrast color choices combined with thin shapes (e.g., dots, bars, or gapped squares) → no special handling beyond existing color behavior; documented as the user's responsibility.
+- Low-contrast color choices combined with thin shapes (e.g., dots, bars, or gapped squares) → no special handling beyond existing color behavior; the embed documentation notes that contrast is the user's responsibility.
 - SVG output → shapes must be preserved as vector shapes, not a rasterized image.
 
 ## Requirements *(mandatory)*
@@ -132,8 +132,8 @@ An integrating service (e.g., a URL shortener embedding QR images) wants to requ
 - **SC-001**: 100% of supported dot × eye border × eye center combinations (9 × 7 × 5 = 315 total) produce codes that decode correctly to the input data at the default size.
 - **SC-002**: Existing embed requests without shape options return images identical to pre-feature output (0 visual regressions for existing consumers).
 - **SC-003**: A user can change a QR code's dot and eye shapes and download the result in under 30 seconds from landing on the generator.
-- **SC-004**: Styled codes scan on first attempt with a typical phone camera at the default size for at least 95% of combinations tested.
-- **SC-005**: Generating a styled code feels as responsive as generating a plain code today (no user-noticeable slowdown in the preview).
+- **SC-004**: Styled codes scan on first attempt with a typical phone camera at the default size for at least 95% of combinations tested. The phone-tested sample is each of the 9 dot shapes (with square eyes), each of the 7 eye borders, and each of the 5 eye centers (with square dots): 21 codes, one phone.
+- **SC-005**: Generating a styled code feels as responsive as generating a plain code today (no user-noticeable slowdown in the preview): server-side rendering of a styled PNG at the default size (300 px) takes at most 50 ms.
 - **SC-006**: Each eye border option, rendered in a generated code, is recognizable as the corresponding silhouette in the reference image when compared side by side, and each eye center option has the same orientation as the matching border outline.
 
 ## Assumptions
@@ -142,5 +142,5 @@ An integrating service (e.g., a URL shortener embedding QR images) wants to requ
 - Decorative/logo-style dot shapes (stars, hearts) and per-eye different shapes are out of scope for this version.
 - Separate eye colors (different from the foreground color) are out of scope.
 - Error-correction level is not automatically raised when a stylized shape is selected; the user keeps control of it.
-- Existing SVG color behavior is unchanged by this feature; shapes are added to SVG output as-is. Aligning SVG colors with PNG is a separate concern.
+- Existing SVG color and sizing behavior is unchanged by this feature: styled SVGs use the same black fill, no background, and the same physical dimensions (mm units) as unstyled SVGs. Aligning SVG colors with PNG is a separate concern.
 - The feature adds no stored state; every styled image is computed from the request alone, consistent with the service's stateless design.

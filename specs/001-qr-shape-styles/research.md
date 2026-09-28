@@ -56,6 +56,12 @@ rounded corners. Two `<path>` elements are emitted: one for dots (default nonzer
 for eyes with `fill-rule="evenodd"`, so that openings cut holes. Coordinates are written with at
 most 3 decimals.
 
+**SVG sizing**: The legacy `qrcode` `SvgImage` writes `width`/`height` in **mm**:
+`box_size × N / 10` mm, where `box_size = max(1, size // (21 + 2·margin))` and N is modules plus
+2·margin (33mm at the defaults). The styled SVG uses the same formula for `width`/`height` and a
+`viewBox="0 0 N N"` in module units, so picking a shape never changes the physical size of a
+downloaded SVG.
+
 **Alternatives considered**: Pillow `rounded_rectangle` was rejected because of the bug above.
 Polygon approximation of arcs was rejected because it makes larger SVGs and loses true vector
 curves.
@@ -90,6 +96,12 @@ new renderer reproduce the legacy pixels exactly would be fragile.
 
 **Consequence**: `dot_shape=square` combined with a non-square eye goes through the styled
 renderer. That is acceptable, because no existing request can produce it.
+
+**Testing the guarantee**: Legacy bytes depend on the installed Pillow/qrcode/zlib versions, so
+committed fixtures alone would break on any dependency upgrade. The always-on tests compare
+outputs within one run (no shape params vs. explicit all-`square` vs. invalid values). The
+committed fixtures additionally catch edits to the legacy path; they record the library versions
+they were captured with and skip when the installed versions differ.
 
 ## 5. Shape definitions (constants tuned against `assets/`)
 

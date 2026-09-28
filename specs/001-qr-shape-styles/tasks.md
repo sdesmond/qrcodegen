@@ -26,7 +26,7 @@ This is a single project with files at the repo root: `qr_generator.py`, the new
 
 These apply to all tasks below:
 
-- **Python 3.9 compatibility.** Production runs `python:3.9-slim`. Don't use `match`, `X | Y` type unions, or any other 3.10+ syntax or stdlib API.
+- **Python 3.14.** Production runs `python:3.14-slim` (upgraded on `chore/python-3.14`, which must merge first), matching local dev. No compatibility shims are needed for older Pythons.
 - **No new runtime dependencies.** `zxing-cpp` is dev-only.
 - **Default render path stays exactly as it is.** When the style is all-`square`, `_make_qr_png` and `_make_qr_svg` must run their current code with no edits to that path (research §4). This is what guarantees FR-011 and SC-002.
 - **Keys, values, and order.** Parameter keys are `dot_shape`, `eye_border`, `eye_center`. Allowed values and their order come from `contracts/http-params.md`, and that order is also the UI display order.
@@ -38,7 +38,7 @@ These apply to all tasks below:
 
 **Purpose**: Tooling, baseline capture, and the empty new module.
 
-- [ ] T001 Capture pre-feature baseline hashes per `specs/001-qr-shape-styles/quickstart.md` §1. Run the app from current `main` and save the sha256 of the three `/api/qr` requests to `/tmp/qr-baseline.txt`. Also save the raw response bytes of those requests as fixtures in `tests/fixtures/legacy/` (`url_png.png`, `hello_svg.svg`, `x_800_m0_fg_H.png`) along with a `tests/fixtures/legacy/README.md` that lists the exact query string for each file.
+- [ ] T001 Capture pre-feature baseline hashes per `specs/001-qr-shape-styles/quickstart.md` §1. Run the app from current `main` and save the sha256 of the three `/api/qr` requests to `/tmp/qr-baseline.txt`. Also save the raw response bytes of those requests as fixtures in `tests/fixtures/legacy/` (`url_png.png`, `hello_svg.svg`, `x_800_m0_fg_H.png`) along with a `tests/fixtures/legacy/README.md` that lists the exact query string for each file and the installed `Pillow` and `qrcode` versions the fixtures were captured with.
 - [ ] T002 [P] Add `zxing-cpp` to `requirements-dev.txt`. It must not go in `requirements.txt`.
 - [ ] T003 [P] Add `COPY qr_shapes.py .` next to the existing `COPY qr_generator.py .` line in `Dockerfile`.
 - [ ] T004 [P] Create `qr_shapes.py` at the repo root with a module docstring saying it holds pure geometry plus the PNG/SVG backends for styled QR codes and has no Flask imports. Leave everything else empty.
@@ -68,8 +68,11 @@ These apply to all tasks below:
   - `rasterize_png` returns a valid PNG of exactly `size×size` whose corner pixel equals `bg` when margin > 0.
   - The supersample canvas side is ≤ 4096 for version 40 (177 modules) with margin 10 at size 2000 (research §3). Expose the computed pixels-per-module through a small helper `_supersample_ppm(n_total, size)` so this can be asserted.
   - `to_svg` returns text that parses as XML (`xml.etree.ElementTree`) with an `svg` root, a `viewBox`, at least one `<path>`, no `<image>`, and an eyes path that has `fill-rule="evenodd"`.
-  - **Geometry parity**: both backends consume the identical lists returned by `build_primitives`.
-- [ ] T007 [P] In `tests/test_routes.py`, add legacy byte-identity tests (SC-002, FR-011, contract rule 5). Using the T001 fixtures, call `_make_qr_png` and `_make_qr_svg` with no `shape` argument, and also with `shape=ShapeStyle('square','square','square')`, and assert the bytes equal the fixtures.
+  - `to_svg`'s `width`/`height` equal the legacy `_make_qr_svg` values (mm units) for the same data, size, and margin, e.g. `33mm` at size 300, margin 4 for a 25-module code.
+  - **SVG structure matches geometry**: for a few hand-built primitive lists (a sharp rect, a fully rounded circle, a TL+BR classy rect, and an eye ring), the number of subpaths (`M` commands) in each `<path>` equals the number of primitives, each subpath starts at the expected coordinate, and a rounded corner emits an `A` command while a sharp corner does not. This catches arc and sweep-flag bugs that PNG decode tests can't see.
+- [ ] T007 [P] In `tests/test_routes.py`, add legacy byte-identity tests (SC-002, FR-011, contract rule 5):
+  - **Always on (same-run)**: for each T001 query, output with no `shape` argument equals output with `shape=ShapeStyle('square','square','square')`, for both `_make_qr_png` and `_make_qr_svg`.
+  - **Fixture check**: output with no `shape` argument equals the T001 fixture bytes. Skip with a clear message when the installed `Pillow` or `qrcode` version differs from the versions in `tests/fixtures/legacy/README.md`, so a dependency upgrade doesn't fail the suite. Re-capture the fixtures after an upgrade.
 
 ### Implementation for Foundation
 
@@ -94,7 +97,7 @@ These apply to all tasks below:
   - The `svg` root has `xmlns`, `width` and `height` set to `size`, and `viewBox="0 0 N N"` in module units.
   - Emit one `<path d=…>` for the dots and one `<path fill-rule="evenodd" d=…>` for the eyes. The eye openings cut holes because of evenodd, so the ink-0 rects are emitted as ordinary subpaths.
   - Build each `RRect` subpath with `M`/`H`/`V` plus `A r r 0 0 1 x y` on rounded corners. Numbers use at most 3 decimals with trailing zeros stripped.
-  - Keep today's SVG color behavior: black fill, no background rect (spec Assumptions).
+  - Keep today's SVG color and sizing behavior: black fill, no background rect, and `width`/`height` in mm computed like the legacy path: `box_size = max(1, size // (21 + 2*margin))`, then `box_size * N / 10` mm (research §2, spec Assumptions).
   - UTF-8 encode, then seek to 0.
 - [ ] T014 In `qr_generator.py`:
   - `from qr_shapes import ShapeStyle, DOT_SHAPES, EYE_BORDERS, EYE_CENTERS, …`
@@ -125,6 +128,7 @@ These apply to all tasks below:
   - **`vertical_bars`**: the transpose of `horizontal_bars`.
   - **`gapped_square`**: a centred 0.8×0.8 square with r = 0.
   - **Every shape**: each dot primitive stays inside its 1×1 cell, and finder modules never produce dots.
+  - **Swatches**: `swatch_svg('dot', v)` for each of the 9 values parses as XML with an `svg` root, `fill="currentColor"`, and at least one `<path>`.
 - [ ] T019 [P] [US1] In `tests/test_routes.py`, add shape tests for the POST routes:
   - `POST /api/generate` with `format=qrcode` and each of the 9 `dot_shape` values returns 200 with the `{image, mime}` envelope. Non-square values give a PNG that differs from the default.
   - `output_format=svg` with `dot_shape=dots` returns a data URL whose decoded SVG contains `<path` and no `<image`.
@@ -149,9 +153,9 @@ These apply to all tasks below:
 - [ ] T024 [US1] In `qr_shapes.py`, implement `swatch_svg(kind, value) -> str`, returning a compact inline `<svg viewBox=… width="36" height="36" fill="currentColor" aria-hidden="true">` string. For `kind == 'dot'`, render a fixed 5×5 sample matrix drawn with that dot shape via `build_primitives` and the same path builder as `to_svg`, with no finder boxes. Use a hard-coded pattern that shows joins horizontally, vertically, and at L-corners, plus one isolated module. Reuse the path-building helper from T013; don't duplicate it. `kind in ('eye_border','eye_center')` is added in US2.
 - [ ] T025 [US1] In `qr_generator.py`, pass `shape=shape` into `_make_qr_png` and `_make_qr_svg` inside the QR (`fmt == 'qrcode'`) branches of both `generate()` and `download()`. Barcode branches must not use `shape`.
 - [ ] T026 [US1] In `qr_generator.py`, add `dot_shape=shape.dot, eye_border=shape.eye_border, eye_center=shape.eye_center` to the QR success `_log_event` calls in `generate()` and `download()`. Leave barcode and error events unchanged.
-- [ ] T027 [US1] In `qr_generator.py`, change `generator()` to build `shape_options`, a dict mapping `'dot_shape'`, `'eye_border'`, `'eye_center'` to lists of `(value, display_name, svg)`. Iterate `DOT_SHAPES` with `swatch_svg('dot', v)`, and for now iterate the eye groups the same way using whatever `swatch_svg` returns. Compute it once at import time and cache it in a module-level constant, since the inputs are constants. Pass it to `render_template('qr_generator.html', shape_options=shape_options)`.
+- [ ] T027 [US1] In `qr_generator.py`, change `generator()` to build `shape_options`, a dict mapping `'dot_shape'`, `'eye_border'`, `'eye_center'` to lists of `(value, display_name, svg)`. Iterate `DOT_SHAPES` with `swatch_svg('dot', v)`. Build only the `dot_shape` list here; the eye lists are added in T037, because `swatch_svg` has no eye kinds until T036 and this runs at import time. Compute it once at import time and cache it in a module-level constant, since the inputs are constants. Pass it to `render_template('qr_generator.html', shape_options=shape_options)`.
 - [ ] T028 [US1] In `templates/qr_generator.html`, add a "Shape style" block inside `#qr-options`, after the Error Correction block (contract generator-ui.md).
-  - Add a sub-group labelled "Dots" that renders `{% for value, name, svg in shape_options['dot_shape'] %}<label class="shape-opt" title="{{ name }}"><input type="radio" name="dot_shape" value="{{ value }}" aria-label="{{ name }}" {% if loop.first %}checked{% endif %}>{{ svg|safe }}</label>{% endfor %}`.
+  - Add a sub-group labelled "Dot shape" that renders `{% for value, name, svg in shape_options['dot_shape'] %}<label class="shape-opt" title="{{ name }}"><input type="radio" name="dot_shape" value="{{ value }}" aria-label="{{ name }}" {% if loop.first %}checked{% endif %}>{{ svg|safe }}</label>{% endfor %}`.
   - Add CSS for `.shape-opts` and `.shape-opt`, mirroring the `.ec-btn` look: a bordered tile with a hover accent. Show the checked state with `.shape-opt:has(input:checked)` or a JS-toggled `.active` class, using the same accent as `.ec-btn.active`. Visually hide the radio but keep it focusable, and show a focus ring on `:focus-visible`. Swatches use `currentColor` so they work in both themes. Tiles must wrap on narrow screens.
 - [ ] T029 [US1] In the `templates/qr_generator.html` JS:
   - In `collectFormData()`, when `currentFormat === 'qrcode'`, append the checked `dot_shape`, `eye_border`, `eye_center` values, reading each with `document.querySelector('input[name="…"]:checked')?.value || 'square'`. The eye groups may not exist until US2, so this must default safely.
@@ -161,6 +165,8 @@ These apply to all tasks below:
 - [ ] T030 [US1] Run `python3 -m pytest`. T018–T022 must pass along with the whole suite. Then run the app (`python3 preview_app.py`), open `/generator`, and visually compare the 9 dot swatches with `specs/001-qr-shape-styles/assets/dot-shape-styles.png`: same order, recognisably the same silhouettes, Gapped square last. Tune the dot constants in `qr_shapes.py` if needed, re-run the tests, and record any tuned values in research.md §5.
 
 **Checkpoint**: US1 is fully functional. Dot shapes work in the UI, preview, PNG and SVG downloads, and logs, and default output is unchanged. This is the MVP and can ship on its own.
+
+If shipping at this point: the parser already accepts `eye_border`/`eye_center` values, but eye geometry still falls through to square (T011), and the UI has no eye pickers. A POST that sends eye values renders square eyes through the styled path. That's acceptable only because no UI exposes it. `/api/qr` must not be wired yet (see the deploy-ordering note in Dependencies).
 
 ---
 
@@ -178,6 +184,7 @@ These apply to all tasks below:
   - All three finders get identical relative geometry, not mirrored (FR-005).
   - Changing `eye_border` doesn't change the center primitives or the dot list, and vice versa (FR-004, FR-005).
   - Every eye primitive stays within `[0, n]²`, so margin=0 never clips.
+  - `swatch_svg('eye_border', v)` and `swatch_svg('eye_center', v)` for every value parse as XML with an `svg` root and an evenodd `<path>`.
 - [ ] T032 [P] [US2] In `tests/test_routes.py`, add the exhaustive decode test `test_decode_all_315_combinations`. Use `pytest.importorskip('zxingcpp')` and parametrize (or loop with collected failures) over `DOT_SHAPES × EYE_BORDERS × EYE_CENTERS`. Render a representative URL at size 300 via `_make_qr_png` and assert the decoded text equals the input (SC-001, FR-014). Also add:
   - A dense payload (about 300 chars, EC `H`) at size 600 for each dot shape paired with each eye border, and separately with each eye center.
   - margin=0 at size 300 for each eye border.
@@ -198,7 +205,7 @@ These apply to all tasks below:
   - `kind='eye_border'` renders one 7×7 eye with that border and a square center.
   - `kind='eye_center'` renders one 7×7 eye with that center and a square border.
   - Both use the evenodd path from `to_svg`'s path builder and the same `<svg>` wrapper attributes as dot swatches.
-- [ ] T037 [US2] In `qr_generator.py`, make sure the cached `shape_options` in `generator()` builds the `eye_border` list from `EYE_BORDERS` with `swatch_svg('eye_border', v)` and the `eye_center` list from `EYE_CENTERS` with `swatch_svg('eye_center', v)`.
+- [ ] T037 [US2] In `qr_generator.py`, extend the cached `shape_options` from T027 so it also builds the `eye_border` list from `EYE_BORDERS` with `swatch_svg('eye_border', v)` and the `eye_center` list from `EYE_CENTERS` with `swatch_svg('eye_center', v)`.
 - [ ] T038 [US2] In `templates/qr_generator.html`, add the "Eye border" and "Eye center" sub-groups to the "Shape style" block, after "Dots". Use the same `.shape-opts` / `.shape-opt` markup pattern and loop over `shape_options['eye_border']` and `shape_options['eye_center']` with radios named `eye_border` and `eye_center`, `square` checked. The JS from T029 already collects them and re-generates on change, so no new JS should be needed. Verify this.
 - [ ] T039 [US2] Run `python3 -m pytest` (T031–T033 plus the full suite). Then open `/generator` and compare the 7 border swatches with `specs/001-qr-shape-styles/assets/eye-border-styles.png` in order and silhouette, and check that each center has the same orientation as its matching border (SC-006). Tune the eye constants if needed, re-run the tests, and record any changes in research.md §5.
 
@@ -241,14 +248,14 @@ These apply to all tasks below:
 
 **Purpose**: Docs (FR-016), compatibility, performance, and the final end-to-end validation.
 
-- [ ] T045 [P] In `README.md`, add `dot_shape`, `eye_border`, `eye_center` rows to the `/api/qr` parameter table, with allowed values, the default, and the fallback rule. Add an example styled `<img src>` URL that uses `example.com`, not lnklab.us.
+- [ ] T045 [P] In `README.md`, add `dot_shape`, `eye_border`, `eye_center` rows to the `/api/qr` parameter table, with allowed values, the default, and the fallback rule. Add an example styled `<img src>` URL that uses `example.com`, not lnklab.us. Note that contrast between fg/bg and thin shapes (dots, bars, gapped squares) is the caller's responsibility (spec Edge Cases).
 - [ ] T046 [P] In `CLAUDE.md`:
   - Add the three params to the `/api/qr` query-param sentence in "Routes".
   - Add `qr_shapes.py  # shape geometry + PNG/SVG backends for styled QR` to "Repo layout" and `test_shapes.py` to the tests line.
   - Add a Conventions bullet saying styled rendering goes through `qr_shapes.build_primitives` and that the all-square style must keep the legacy path byte-identical.
-- [ ] T047 [P] In `docs/INTEGRATIONS.md`, document the shape params for embedders, with a styled example URL and a note that existing URLs render identically and stay cache-stable.
-- [ ] T048 [P] Check Python 3.9 compatibility. Either run `docker compose build` followed by `docker compose run --rm app python -c "import qr_shapes, qr_generator"`, or run `python3.9 -m py_compile qr_shapes.py qr_generator.py`, and fix any 3.10+ syntax.
-- [ ] T049 [P] Check performance (SC-005, plan's ≤ ~50 ms goal). Time `_make_qr_png` for `extra_rounded` / `teardrop` / `leaf` at size 300 and for the worst case (a 2000-char payload, EC `H`, size 2000). Record the numbers in the PR description. If the default size exceeds 50 ms, profile `_draw_rrect`.
+- [ ] T047 [P] In `docs/INTEGRATIONS.md`, document the shape params for embedders, with a styled example URL, a note that existing URLs render identically and stay cache-stable, and the same contrast-responsibility note as T045.
+- [ ] T048 [P] Run the full test suite inside the production image: `docker compose build`, then run `pip install -r requirements-dev.txt && python -m pytest` in a `python:3.14-slim` container with the repo mounted. Confirm `qr_shapes.py` is copied into the image (T003) by starting the container and requesting a styled `/api/qr` URL.
+- [ ] T049 [P] Check performance (SC-005, plan's ≤ ~50 ms goal). Time `_make_qr_png` for `extra_rounded` / `teardrop` / `leaf` at size 300 and for the worst case (a 2000-char payload, EC `H`, size 2000). Record the numbers in the PR description. Add a test `test_styled_render_perf` that asserts the median of 5 renders at size 300 is ≤ 50 ms (SC-005); if it fails, profile `_draw_rrect`.
 - [ ] T050 Run all of `specs/001-qr-shape-styles/quickstart.md`: §2 the automated suite, §3 the contract checks, §4 the visual comparison, §5 the manual end-to-end including phone scans of the PNG and SVG downloads and the under-30 s timing, and §6 the log check. Note any deviations.
 - [ ] T051 Final `python3 -m pytest` run. The full suite must pass before merge (Principle V).
 
@@ -264,6 +271,8 @@ These apply to all tasks below:
 - **US2 (Phase 4)**: Depends on Foundational. The UI tasks T037 and T038 build on the `shape_options` and "Shape style" block from T027 and T028. If US2 is built before US1, those scaffolding tasks move into US2. The geometry work (T034–T036) doesn't depend on US1.
 - **US3 (Phase 5)**: Depends only on Foundational. `/api/qr` wiring (T042) is independent of the UI. Its tests exercise real shapes, so to see non-square output it needs T023 (dots) and/or T034 and T035 (eyes).
 - **Polish (Phase 6)**: Depends on all stories that are going to ship.
+- **Prerequisite outside this feature**: `chore/python-3.14` (Dockerfile base image) must merge to `main` before this feature deploys.
+- **Deploy ordering for `/api/qr`**: `/api/qr` responses are cached `immutable` for 24 h at the edge. Don't deploy T042 until all geometry (T023, T034, T035) is implemented and swatch tuning (T030, T039) is done, or cached styled URLs would change after a later deploy. US3 can be *built* after Foundational, but must *ship* after US2.
 
 ### Within Each Phase
 

@@ -28,9 +28,10 @@ Principle II).
    ignored, and the output is byte-identical to the same request without them.
 4. **Composition with existing params.**
    - PNG honours `size`, `margin`, `fg_color`, `bg_color`, `ec_level` (FR-009).
-   - SVG honours `size`, `margin`, `ec_level`, and stays vector: `<path>` elements, no embedded
+   - SVG honours `margin` and `ec_level`, and stays vector: `<path>` elements, no embedded
      raster (FR-008).
-   - SVG color behavior is unchanged from today: black shapes, no background.
+   - SVG color and sizing behavior is unchanged from today: black shapes, no background, and
+     `width`/`height` in mm derived from `size` and `margin` exactly as the legacy SVG does.
 5. **All-default equals legacy.** `dot_shape=square&eye_border=square&eye_center=square` returns
    exactly the same bytes as omitting all three.
 6. **No new error cases.** The only 4xx is still missing `data` (or no content, on POST).

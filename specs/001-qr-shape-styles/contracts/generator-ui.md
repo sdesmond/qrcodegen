@@ -16,7 +16,7 @@ There are three radio groups, one per parameter. Each option is a
 
 | Group label | `name` | Options (in order) | Initially checked |
 |---|---|---|---|
-| Dots | `dot_shape` | 9 dot values, in contract order | `square` |
+| Dot shape | `dot_shape` | 9 dot values, in contract order | `square` |
 | Eye border | `eye_border` | 7 border values, in contract order | `square` |
 | Eye center | `eye_center` | 5 center values, in contract order | `square` |
 
