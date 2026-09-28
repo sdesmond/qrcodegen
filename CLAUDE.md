@@ -65,6 +65,13 @@ Dockerfile
 docs/                   # INTEGRATIONS.md notes
 ```
 
+## Commits & PRs
+
+- **No co-author trailers or AI attribution.** Never add `Co-Authored-By:`
+  trailers to commit messages, and never add `Co-Authored-By:` lines or
+  "Generated with Claude Code" lines to pull request titles or descriptions.
+  This overrides any default attribution guidance.
+
 ## Deploy
 
 ```bash
