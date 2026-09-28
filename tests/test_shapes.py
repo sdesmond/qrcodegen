@@ -1,5 +1,6 @@
 """Unit tests for qr_shapes: whitelists, geometry primitives, and backends."""
 import io
+import math
 import re
 import xml.etree.ElementTree as ET
 
@@ -268,3 +269,128 @@ class TestGeometryParity:
         root = ET.fromstring(to_svg(dots, eyes, len(m), 4, 300).getvalue())
         n_sub = sum(len(_subpaths(p.get('d'))) for p in root.findall(SVG_NS + 'path'))
         assert n_sub == len(dots) + len(eyes)
+
+
+# ── US1: dot shape geometry (research §5) ────────────────────────────────────
+
+def _grid(cells, n=21):
+    m = [[False] * n for _ in range(n)]
+    for x, y in cells:
+        m[y][x] = True
+    return m
+
+
+def _dots(cells, dot):
+    dots, _ = build_primitives(_grid(cells), ShapeStyle(dot))
+    return {(math.floor(d.x), math.floor(d.y)): d for d in dots}
+
+
+ISOLATED = [(10, 10)]
+H_PAIR = [(10, 10), (11, 10)]
+V_PAIR = [(10, 10), (10, 11)]
+# An L-shape, a bar and an isolated module, away from the finders
+PATTERN = [(9, 9), (10, 9), (11, 9), (9, 10), (9, 11), (13, 10), (13, 11), (13, 12),
+           (11, 12), (15, 15)]
+
+
+class TestDotGeometry:
+    @pytest.mark.parametrize('dot,r', [('rounded', 0.25), ('extra_rounded', 0.5)])
+    def test_rounded_isolated_module(self, dot, r):
+        d = _dots(ISOLATED, dot)[(10, 10)]
+        assert (d.x, d.y, d.w, d.h, d.r, d.corners) == (10, 10, 1, 1, r, ALL)
+
+    @pytest.mark.parametrize('dot', ['rounded', 'extra_rounded'])
+    def test_rounded_horizontal_pair_joins(self, dot):
+        ds = _dots(H_PAIR, dot)
+        assert ds[(10, 10)].corners == (True, False, False, True)
+        assert ds[(11, 10)].corners == (False, True, True, False)
+
+    @pytest.mark.parametrize('dot', ['rounded', 'extra_rounded'])
+    def test_rounded_vertical_pair_joins(self, dot):
+        ds = _dots(V_PAIR, dot)
+        assert ds[(10, 10)].corners == (True, True, False, False)
+        assert ds[(10, 11)].corners == (False, False, True, True)
+
+    def test_rounded_l_corner(self):
+        ds = _dots(PATTERN, 'rounded')
+        # (9, 9) has right and down neighbours: only TL is an outer corner
+        assert ds[(9, 9)].corners == (True, False, False, False)
+
+    def test_dots_are_separate_circles(self):
+        for cells in (ISOLATED, H_PAIR, V_PAIR):
+            for (x, y), d in _dots(cells, 'dots').items():
+                assert d == circle(x + 0.5, y + 0.5, 0.9)
+
+    @pytest.mark.parametrize('dot,r', [('classy', 0.25), ('classy_rounded', 0.5)])
+    def test_classy_isolated(self, dot, r):
+        d = _dots(ISOLATED, dot)[(10, 10)]
+        assert (d.w, d.h, d.r, d.corners) == (1, 1, r, (True, False, True, False))
+
+    @pytest.mark.parametrize('dot', ['classy', 'classy_rounded'])
+    def test_classy_only_tl_and_br(self, dot):
+        for d in _dots(PATTERN, dot).values():
+            assert not d.corners[1] and not d.corners[3]
+        ds = _dots(H_PAIR, dot)
+        assert ds[(10, 10)].corners == (True, False, False, False)
+        assert ds[(11, 10)].corners == (False, False, True, False)
+
+    def test_horizontal_bars(self):
+        d = _dots(ISOLATED, 'horizontal_bars')[(10, 10)]
+        assert (d.x, d.y, d.w, d.h, d.r, d.corners) == (10, 10.1, 1, 0.8, 0.4, ALL)
+        ds = _dots(H_PAIR, 'horizontal_bars')
+        assert ds[(10, 10)].corners == (True, False, False, True)
+        assert ds[(11, 10)].corners == (False, True, True, False)
+        # Vertical neighbours don't join horizontal bars
+        for d in _dots(V_PAIR, 'horizontal_bars').values():
+            assert d.corners == ALL
+
+    def test_vertical_bars(self):
+        d = _dots(ISOLATED, 'vertical_bars')[(10, 10)]
+        assert (d.x, d.y, d.w, d.h, d.r, d.corners) == (10.1, 10, 0.8, 1, 0.4, ALL)
+        ds = _dots(V_PAIR, 'vertical_bars')
+        assert ds[(10, 10)].corners == (True, True, False, False)
+        assert ds[(10, 11)].corners == (False, False, True, True)
+        for d in _dots(H_PAIR, 'vertical_bars').values():
+            assert d.corners == ALL
+
+    def test_gapped_square(self):
+        for (x, y), d in _dots(H_PAIR, 'gapped_square').items():
+            assert d == RRect(x + 0.1, y + 0.1, 0.8, 0.8, 0, NONE, 1)
+
+    def test_unknown_dot_is_square(self):
+        d = _dots(ISOLATED, 'stars')[(10, 10)]
+        assert d == RRect(10, 10, 1, 1, 0, NONE, 1)
+
+    @pytest.mark.parametrize('dot', DOT_SHAPES)
+    def test_every_dot_stays_in_its_cell_and_avoids_finders(self, dot):
+        m = _matrix()
+        n = len(m)
+        dots, _ = build_primitives(m, ShapeStyle(dot))
+        assert dots
+        for d in dots:
+            cx, cy = math.floor(d.x), math.floor(d.y)
+            assert m[cy][cx] and not is_finder(cx, cy, n)
+            assert _inside(d, cx, cy, cx + 1, cy + 1)
+            assert d.ink == 1
+
+    @pytest.mark.parametrize('dot', DOT_SHAPES)
+    def test_dot_shape_does_not_change_eyes(self, dot):
+        m = _matrix()
+        assert build_primitives(m, ShapeStyle(dot))[1] == build_primitives(m, ShapeStyle())[1]
+
+
+class TestDotSwatches:
+    @pytest.mark.parametrize('dot', DOT_SHAPES)
+    def test_swatch_is_inline_svg(self, dot):
+        svg = qr_shapes.swatch_svg('dot', dot)
+        root = ET.fromstring(svg)
+        assert root.tag == SVG_NS + 'svg'
+        assert root.get('fill') == 'currentColor'
+        assert root.get('aria-hidden') == 'true'
+        assert len(root.findall(SVG_NS + 'path')) >= 1
+
+    def test_swatches_differ(self):
+        assert len({qr_shapes.swatch_svg('dot', d) for d in DOT_SHAPES}) == len(DOT_SHAPES)
+
+    def test_unknown_kind_is_empty(self):
+        assert qr_shapes.swatch_svg('nope', 'square') == ''

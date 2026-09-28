@@ -341,3 +341,169 @@ class TestLegacyIdentity:
     def test_no_shape_matches_pre_feature_fixture(self, name, query, kind, args):
         _require_fixture_versions()
         assert _same_image(kind, _render(kind, args), _read_fixture(name))
+
+
+# ── Shape styles: helpers ────────────────────────────────────────────────────
+
+from qr_shapes import DOT_SHAPES, EYE_BORDERS, EYE_CENTERS  # noqa: E402
+from qr_generator import MIN_SIZE  # noqa: E402
+
+SHAPE_URL = 'https://example.com/abc'
+
+
+def _decode_image(data):
+    b64 = data['image'].split(',', 1)[1]
+    return base64.b64decode(b64)
+
+
+def _post_qr(client, **extra):
+    form = {'format': 'qrcode', 'content_type': 'url', 'url': SHAPE_URL, 'output_format': 'png'}
+    form.update(extra)
+    return client.post('/api/generate', data=form)
+
+
+def _decodes_to(png_buf, expected):
+    zxingcpp = pytest.importorskip('zxingcpp')
+    results = zxingcpp.read_barcodes(Image.open(png_buf))
+    return [r.text for r in results] == [expected]
+
+
+# ── US1: POST routes accept dot_shape ────────────────────────────────────────
+
+class TestDotShapeRoutes:
+    @pytest.mark.parametrize('dot', DOT_SHAPES)
+    def test_generate_accepts_every_dot_shape(self, client, dot):
+        rv = _post_qr(client, dot_shape=dot)
+        assert rv.status_code == 200
+        body = rv.get_json()
+        assert set(body) == {'image', 'mime'}
+        assert body['mime'] == 'image/png'
+        default = _decode_image(_post_qr(client).get_json())
+        styled = _decode_image(body)
+        assert styled[:8] == b'\x89PNG\r\n\x1a\n'
+        if dot == 'square':
+            assert styled == default
+        else:
+            assert styled != default
+
+    def test_svg_output_is_vector(self, client):
+        rv = _post_qr(client, output_format='svg', dot_shape='dots')
+        assert rv.status_code == 200
+        svg = _decode_image(rv.get_json())
+        assert b'<path' in svg
+        assert b'<image' not in svg
+
+    def test_download_keeps_filename_and_type(self, client):
+        base = {'format': 'qrcode', 'content_type': 'url', 'url': SHAPE_URL}
+        for fmt, mime in (('png', 'image/png'), ('svg', 'image/svg+xml')):
+            plain = client.post('/api/generate/download', data=dict(base, output_format=fmt))
+            styled = client.post('/api/generate/download',
+                                 data=dict(base, output_format=fmt, dot_shape='extra_rounded'))
+            assert styled.status_code == 200
+            assert styled.mimetype == plain.mimetype == mime
+            assert styled.headers['Content-Disposition'] == plain.headers['Content-Disposition']
+            assert styled.data != plain.data
+
+    def test_wrong_case_is_ignored(self, client):
+        a = _decode_image(_post_qr(client, dot_shape='Dots').get_json())
+        b = _decode_image(_post_qr(client).get_json())
+        assert a == b
+
+    @pytest.mark.parametrize('route', ['/api/generate', '/api/generate/download'])
+    def test_barcode_ignores_shape_params(self, client, route):
+        base = {'format': 'code128', 'barcode_data': 'HELLO123', 'output_format': 'png'}
+        plain = client.post(route, data=base)
+        styled = client.post(route, data=dict(base, dot_shape='dots', eye_border='circle',
+                                              eye_center='leaf'))
+        assert plain.status_code == styled.status_code == 200
+        assert plain.data == styled.data
+
+
+# ── US1: dot shapes decode (FR-014, FR-009) ──────────────────────────────────
+
+class TestDotShapeDecode:
+    @pytest.mark.parametrize('dot', DOT_SHAPES)
+    def test_decode_dot_shape_default_size(self, dot):
+        buf = _make_qr_png(SHAPE_URL, ERROR_CORRECT_M, 300, 4, '#000000', '#ffffff',
+                           shape=ShapeStyle(dot))
+        assert _decodes_to(buf, SHAPE_URL)
+
+    @pytest.mark.parametrize('dot', DOT_SHAPES)
+    def test_decode_dot_shape_min_size(self, dot):
+        buf = _make_qr_png('hi there', ERROR_CORRECT_M, MIN_SIZE, 4, '#000000', '#ffffff',
+                           shape=ShapeStyle(dot))
+        assert _decodes_to(buf, 'hi there')
+
+    @pytest.mark.parametrize('dot', DOT_SHAPES)
+    def test_decode_dot_shape_custom_colors(self, dot):
+        buf = _make_qr_png(SHAPE_URL, ERROR_CORRECT_M, 330, 4, '#1a237e', '#fffde7',
+                           shape=ShapeStyle(dot))
+        img = Image.open(buf).convert('RGB')
+        # Centre of the top-left eye (always dark) is exactly fg; the corner is bg
+        assert img.getpixel((75, 75)) == (0x1a, 0x23, 0x7e)
+        assert img.getpixel((0, 0)) == (0xff, 0xfd, 0xe7)
+        buf.seek(0)
+        assert _decodes_to(buf, SHAPE_URL)
+
+
+# ── US1: shape options are logged (FR-015) ───────────────────────────────────
+
+@pytest.fixture
+def events(monkeypatch):
+    import qr_generator
+    captured = []
+    monkeypatch.setattr(qr_generator, '_log_event', lambda **kw: captured.append(kw))
+    return captured
+
+
+class TestShapeLogging:
+    @pytest.mark.parametrize('route', ['/api/generate', '/api/generate/download'])
+    def test_success_event_has_normalized_shapes(self, client, events, route):
+        secret = 'https://example.com/private-token-123'
+        client.post(route, data={'format': 'qrcode', 'content_type': 'url', 'url': secret,
+                                 'dot_shape': 'Dots', 'eye_border': 'circle'})
+        ev = events[-1]
+        assert ev['status'] == 'success'
+        assert (ev['dot_shape'], ev['eye_border'], ev['eye_center']) == ('square', 'circle', 'square')
+        assert secret not in repr(ev)
+
+    @pytest.mark.parametrize('route', ['/api/generate', '/api/generate/download'])
+    def test_barcode_event_has_no_shape_keys(self, client, events, route):
+        client.post(route, data={'format': 'code128', 'barcode_data': 'ABC', 'dot_shape': 'dots'})
+        ev = events[-1]
+        assert ev['status'] == 'success'
+        assert not {'dot_shape', 'eye_border', 'eye_center'} & set(ev)
+
+
+# ── Generator page shape pickers ─────────────────────────────────────────────
+
+def _qr_options_html(client):
+    html = client.get('/generator').get_data(as_text=True)
+    start = html.index('<div id="qr-options">')
+    end = html.index('<!-- ══ 1D Barcode options ══ -->', start)
+    return html[start:end]
+
+
+def _radios(section, name):
+    pattern = r'<input type="radio" name="' + name + r'" value="([a-z_]+)"([^>]*)>'
+    return re.findall(pattern, section)
+
+
+def _option_labels(section, name):
+    labels = re.findall(r'<label class="shape-opt"[^>]*>(.*?)</label>', section, re.S)
+    return [lab for lab in labels if 'name="' + name + '"' in lab]
+
+
+class TestGeneratorShapeStyle:
+    def test_shape_style_section_inside_qr_options(self, client):
+        assert 'Shape style' in _qr_options_html(client)
+
+    def test_dot_shape_radios(self, client):
+        radios = _radios(_qr_options_html(client), 'dot_shape')
+        assert [v for v, _ in radios] == list(DOT_SHAPES)
+        assert [v for v, attrs in radios if 'checked' in attrs] == ['square']
+
+    def test_each_dot_option_has_inline_svg(self, client):
+        labels = _option_labels(_qr_options_html(client), 'dot_shape')
+        assert len(labels) == len(DOT_SHAPES)
+        assert all('<svg' in lab for lab in labels)

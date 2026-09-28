@@ -41,6 +41,10 @@ def _log_event(**kwargs):
     _log.info(kwargs)
 
 
+def _shape_log_fields(shape):
+    return {'dot_shape': shape.dot, 'eye_border': shape.eye_border, 'eye_center': shape.eye_center}
+
+
 _CSP = (
     "default-src 'self'; "
     "script-src 'self' 'unsafe-inline' https://www.googletagmanager.com https://www.google-analytics.com; "
@@ -274,9 +278,19 @@ def _make_barcode_buf(fmt, data, output_fmt, bar_height, margin, show_text):
     return buf
 
 
+def _build_shape_options():
+    return {
+        'dot_shape': [(v, qr_shapes.display_name('dot', v), qr_shapes.swatch_svg('dot', v))
+                      for v in qr_shapes.DOT_SHAPES],
+    }
+
+
+SHAPE_OPTIONS = _build_shape_options()
+
+
 @qr_bp.route('/generator')
 def generator():
-    return render_template('qr_generator.html')
+    return render_template('qr_generator.html', shape_options=SHAPE_OPTIONS)
 
 
 @qr_bp.route('/api/generate', methods=['POST'])
@@ -292,16 +306,16 @@ def generate():
             if not data:
                 return jsonify({'error': 'No data provided'}), 400
             if output_fmt == 'svg':
-                buf = _make_qr_svg(data, ec, size, margin)
+                buf = _make_qr_svg(data, ec, size, margin, shape=shape)
                 b64 = base64.b64encode(buf.getvalue()).decode()
                 resp = jsonify({'image': f'data:image/svg+xml;base64,{b64}', 'mime': 'image/svg+xml'})
             else:
-                buf = _make_qr_png(data, ec, size, margin, fg, bg)
+                buf = _make_qr_png(data, ec, size, margin, fg, bg, shape=shape)
                 b64 = base64.b64encode(buf.getvalue()).decode()
                 resp = jsonify({'image': f'data:image/png;base64,{b64}', 'mime': 'image/png'})
             _log_event(event='generate', format=fmt, content_type=form.get('content_type', 'text'),
                        output_format=output_fmt, ec_level=form.get('ec_level', 'M'),
-                       source=source, status='success')
+                       **_shape_log_fields(shape), source=source, status='success')
             return resp
 
         bc_id = BARCODE_FORMATS.get(fmt)
@@ -387,17 +401,17 @@ def download():
             if not data:
                 return jsonify({'error': 'No data provided'}), 400
             if output_fmt == 'svg':
-                buf = _make_qr_svg(data, ec, size, margin)
+                buf = _make_qr_svg(data, ec, size, margin, shape=shape)
                 _log_event(event='download', format=fmt, content_type=form.get('content_type', 'text'),
                            output_format=output_fmt, ec_level=form.get('ec_level', 'M'),
-                           source=source, status='success')
+                           **_shape_log_fields(shape), source=source, status='success')
                 return send_file(buf, mimetype='image/svg+xml', as_attachment=True,
                                  download_name='qrcode.svg')
             else:
-                buf = _make_qr_png(data, ec, size, margin, fg, bg)
+                buf = _make_qr_png(data, ec, size, margin, fg, bg, shape=shape)
                 _log_event(event='download', format=fmt, content_type=form.get('content_type', 'text'),
                            output_format=output_fmt, ec_level=form.get('ec_level', 'M'),
-                           source=source, status='success')
+                           **_shape_log_fields(shape), source=source, status='success')
                 return send_file(buf, mimetype='image/png', as_attachment=True,
                                  download_name='qrcode.png')
 

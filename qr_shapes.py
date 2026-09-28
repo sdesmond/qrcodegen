@@ -112,7 +112,26 @@ def _dot_primitives(dot, x, y, nb):
     """Primitives for the dark data module at (x, y).
 
     ``nb(dx, dy)`` is True when the orthogonal neighbour is a dark data module.
+    Corner rule: a corner is rounded only when both neighbours touching it are
+    absent, so joined modules render as solid groups with rounded outer corners.
     """
+    if dot == 'dots':
+        return [circle(x + 0.5, y + 0.5, 0.9)]
+    if dot == 'gapped_square':
+        return [RRect(x + 0.1, y + 0.1, 0.8, 0.8, 0, NO_CORNERS)]
+    if dot == 'horizontal_bars':
+        left, right = not nb(-1, 0), not nb(1, 0)
+        return [RRect(x, y + 0.1, 1, 0.8, 0.4, (left, right, right, left))]
+    if dot == 'vertical_bars':
+        top, bottom = not nb(0, -1), not nb(0, 1)
+        return [RRect(x + 0.1, y, 0.8, 1, 0.4, (top, top, bottom, bottom))]
+    if dot in ('rounded', 'extra_rounded', 'classy', 'classy_rounded'):
+        up, down, left, right = not nb(0, -1), not nb(0, 1), not nb(-1, 0), not nb(1, 0)
+        tl, tr, br, bl = up and left, up and right, down and right, down and left
+        if dot.startswith('classy'):
+            tr = bl = False
+        r = 0.5 if dot in ('extra_rounded', 'classy_rounded') else 0.25
+        return [RRect(x, y, 1, 1, r, (tl, tr, br, bl))]
     return [RRect(x, y, 1, 1, 0, NO_CORNERS)]
 
 
@@ -265,3 +284,29 @@ def to_svg(dots, eyes, n, margin, size):
     buf = io.BytesIO(''.join(parts).encode('utf-8'))
     buf.seek(0)
     return buf
+
+
+# ── UI swatches ──────────────────────────────────────────────────────────────
+
+# 5×5 dot sample: horizontal and vertical joins, L-corners and an isolated module
+_SWATCH_DOTS = (
+    '11101',
+    '10100',
+    '10011',
+    '01010',
+    '11001',
+)
+
+
+def _swatch_wrapper(view, paths):
+    return ('<svg xmlns="http://www.w3.org/2000/svg" viewBox="{0}" width="36" height="36" '
+            'fill="currentColor" aria-hidden="true" focusable="false">{1}</svg>').format(view, paths)
+
+
+def swatch_svg(kind, value):
+    """Inline SVG preview for one picker option, drawn with the production geometry."""
+    if kind == 'dot':
+        matrix = [[c == '1' for c in row] for row in _SWATCH_DOTS]
+        dots = _dots_for(matrix, value)
+        return _swatch_wrapper('-0.5 -0.5 6 6', f'<path d="{_path_d(dots, 0)}"/>')
+    return ''

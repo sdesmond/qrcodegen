@@ -120,7 +120,7 @@ These apply to all tasks below:
 
 ### Tests for User Story 1 (write first; they must fail)
 
-- [ ] T018 [P] [US1] In `tests/test_shapes.py`, add dot geometry units against research §5, using small hand-built matrices (for example a 21×21 all-light matrix with a few dark data modules placed away from the finders):
+- [X] T018 [P] [US1] In `tests/test_shapes.py`, add dot geometry units against research §5, using small hand-built matrices (for example a 21×21 all-light matrix with a few dark data modules placed away from the finders):
   - **`rounded` / `extra_rounded`**: an isolated module has all 4 corners set with r = 0.25 / 0.5. In a horizontal pair, the left module's TR and BR corners are not set.
   - **`dots`**: one circle of diameter 0.9 centred in the cell, with no joining.
   - **`classy` / `classy_rounded`**: only the TL and BR corners are ever set, following the corner rule.
@@ -129,40 +129,40 @@ These apply to all tasks below:
   - **`gapped_square`**: a centred 0.8×0.8 square with r = 0.
   - **Every shape**: each dot primitive stays inside its 1×1 cell, and finder modules never produce dots.
   - **Swatches**: `swatch_svg('dot', v)` for each of the 9 values parses as XML with an `svg` root, `fill="currentColor"`, and at least one `<path>`.
-- [ ] T019 [P] [US1] In `tests/test_routes.py`, add shape tests for the POST routes:
+- [X] T019 [P] [US1] In `tests/test_routes.py`, add shape tests for the POST routes:
   - `POST /api/generate` with `format=qrcode` and each of the 9 `dot_shape` values returns 200 with the `{image, mime}` envelope. Non-square values give a PNG that differs from the default.
   - `output_format=svg` with `dot_shape=dots` returns a data URL whose decoded SVG contains `<path` and no `<image`.
   - `POST /api/generate/download` with `dot_shape=extra_rounded` returns an attachment with the same filename and content-type as the default.
   - `dot_shape=Dots` (wrong case) returns the same bytes as omitting it.
   - A barcode `format` (for example `code128`) with shape params returns bytes identical to the same request without them (contract rule 3, research §10).
-- [ ] T020 [P] [US1] In `tests/test_routes.py`, add decode tests marked with `decode` in their names. Use `pytest.importorskip('zxingcpp')` and decode through `_make_qr_png` with `zxingcpp.read_barcodes(PIL.Image)`:
+- [X] T020 [P] [US1] In `tests/test_routes.py`, add decode tests marked with `decode` in their names. Use `pytest.importorskip('zxingcpp')` and decode through `_make_qr_png` with `zxingcpp.read_barcodes(PIL.Image)`:
   - Each of the 9 dot shapes with square eyes decodes a representative URL at size 300.
   - Each dot shape decodes a short payload at `MIN_SIZE` (100).
   - Each dot shape decodes with custom fg `#1a237e` on bg `#fffde7`, and the pixel color at a known dark module is the fg color (FR-009).
-- [ ] T021 [P] [US1] In `tests/test_routes.py`, add log-field tests (FR-015). Capture the `qrcodegen` logger (with `caplog`, or by patching `_log_event`). A successful QR `generate` and `download` event contains `dot_shape`, `eye_border`, `eye_center` with the normalized values. Raw invalid input such as `Dots` is logged as `square`. The payload `data` never appears in the event. Barcode events have no shape keys.
-- [ ] T022 [P] [US1] In `tests/test_routes.py`, add a `GET /generator` test. The HTML contains a "Shape style" heading inside `#qr-options`, exactly 9 `input[name="dot_shape"]` radios whose `value`s are in contract order, `square` checked, and an inline `<svg` inside each dot option label.
+- [X] T021 [P] [US1] In `tests/test_routes.py`, add log-field tests (FR-015). Capture the `qrcodegen` logger (with `caplog`, or by patching `_log_event`). A successful QR `generate` and `download` event contains `dot_shape`, `eye_border`, `eye_center` with the normalized values. Raw invalid input such as `Dots` is logged as `square`. The payload `data` never appears in the event. Barcode events have no shape keys.
+- [X] T022 [P] [US1] In `tests/test_routes.py`, add a `GET /generator` test. The HTML contains a "Shape style" heading inside `#qr-options`, exactly 9 `input[name="dot_shape"]` radios whose `value`s are in contract order, `square` checked, and an inline `<svg` inside each dot option label.
 
 ### Implementation for User Story 1
 
-- [ ] T023 [US1] In `qr_shapes.py`, implement `_dot_primitives(dot, x, y, nb)` for all 9 values per the research §5 table.
+- [X] T023 [US1] In `qr_shapes.py`, implement `_dot_primitives(dot, x, y, nb)` for all 9 values per the research §5 table.
   - **Corner rule**: a corner is rounded only when both orthogonal neighbours touching it are absent. TL uses up and left, TR uses up and right, BR uses down and right, BL uses down and left.
   - `rounded` and `extra_rounded` apply the rule on all 4 corners. `classy` and `classy_rounded` apply it on TL and BR only.
   - The bar styles use the end rule from the table.
   - `dots` and `gapped_square` never join.
   - Unknown values give a 1×1 square.
-- [ ] T024 [US1] In `qr_shapes.py`, implement `swatch_svg(kind, value) -> str`, returning a compact inline `<svg viewBox=… width="36" height="36" fill="currentColor" aria-hidden="true">` string. For `kind == 'dot'`, render a fixed 5×5 sample matrix drawn with that dot shape via `build_primitives` and the same path builder as `to_svg`, with no finder boxes. Use a hard-coded pattern that shows joins horizontally, vertically, and at L-corners, plus one isolated module. Reuse the path-building helper from T013; don't duplicate it. `kind in ('eye_border','eye_center')` is added in US2.
-- [ ] T025 [US1] In `qr_generator.py`, pass `shape=shape` into `_make_qr_png` and `_make_qr_svg` inside the QR (`fmt == 'qrcode'`) branches of both `generate()` and `download()`. Barcode branches must not use `shape`.
-- [ ] T026 [US1] In `qr_generator.py`, add `dot_shape=shape.dot, eye_border=shape.eye_border, eye_center=shape.eye_center` to the QR success `_log_event` calls in `generate()` and `download()`. Leave barcode and error events unchanged.
-- [ ] T027 [US1] In `qr_generator.py`, change `generator()` to build `shape_options`, a dict mapping `'dot_shape'`, `'eye_border'`, `'eye_center'` to lists of `(value, display_name, svg)`. Iterate `DOT_SHAPES` with `swatch_svg('dot', v)`. Build only the `dot_shape` list here; the eye lists are added in T037, because `swatch_svg` has no eye kinds until T036 and this runs at import time. Compute it once at import time and cache it in a module-level constant, since the inputs are constants. Pass it to `render_template('qr_generator.html', shape_options=shape_options)`.
-- [ ] T028 [US1] In `templates/qr_generator.html`, add a "Shape style" block inside `#qr-options`, after the Error Correction block (contract generator-ui.md).
+- [X] T024 [US1] In `qr_shapes.py`, implement `swatch_svg(kind, value) -> str`, returning a compact inline `<svg viewBox=… width="36" height="36" fill="currentColor" aria-hidden="true">` string. For `kind == 'dot'`, render a fixed 5×5 sample matrix drawn with that dot shape via `build_primitives` and the same path builder as `to_svg`, with no finder boxes. Use a hard-coded pattern that shows joins horizontally, vertically, and at L-corners, plus one isolated module. Reuse the path-building helper from T013; don't duplicate it. `kind in ('eye_border','eye_center')` is added in US2.
+- [X] T025 [US1] In `qr_generator.py`, pass `shape=shape` into `_make_qr_png` and `_make_qr_svg` inside the QR (`fmt == 'qrcode'`) branches of both `generate()` and `download()`. Barcode branches must not use `shape`.
+- [X] T026 [US1] In `qr_generator.py`, add `dot_shape=shape.dot, eye_border=shape.eye_border, eye_center=shape.eye_center` to the QR success `_log_event` calls in `generate()` and `download()`. Leave barcode and error events unchanged.
+- [X] T027 [US1] In `qr_generator.py`, change `generator()` to build `shape_options`, a dict mapping `'dot_shape'`, `'eye_border'`, `'eye_center'` to lists of `(value, display_name, svg)`. Iterate `DOT_SHAPES` with `swatch_svg('dot', v)`. Build only the `dot_shape` list here; the eye lists are added in T037, because `swatch_svg` has no eye kinds until T036 and this runs at import time. Compute it once at import time and cache it in a module-level constant, since the inputs are constants. Pass it to `render_template('qr_generator.html', shape_options=shape_options)`.
+- [X] T028 [US1] In `templates/qr_generator.html`, add a "Shape style" block inside `#qr-options`, after the Error Correction block (contract generator-ui.md).
   - Add a sub-group labelled "Dot shape" that renders `{% for value, name, svg in shape_options['dot_shape'] %}<label class="shape-opt" title="{{ name }}"><input type="radio" name="dot_shape" value="{{ value }}" aria-label="{{ name }}" {% if loop.first %}checked{% endif %}>{{ svg|safe }}</label>{% endfor %}`.
   - Add CSS for `.shape-opts` and `.shape-opt`, mirroring the `.ec-btn` look: a bordered tile with a hover accent. Show the checked state with `.shape-opt:has(input:checked)` or a JS-toggled `.active` class, using the same accent as `.ec-btn.active`. Visually hide the radio but keep it focusable, and show a focus ring on `:focus-visible`. Swatches use `currentColor` so they work in both themes. Tiles must wrap on narrow screens.
-- [ ] T029 [US1] In the `templates/qr_generator.html` JS:
+- [X] T029 [US1] In the `templates/qr_generator.html` JS:
   - In `collectFormData()`, when `currentFormat === 'qrcode'`, append the checked `dot_shape`, `eye_border`, `eye_center` values, reading each with `document.querySelector('input[name="…"]:checked')?.value || 'square'`. The eye groups may not exist until US2, so this must default safely.
   - Add a delegated `change` listener on `.shape-opts` inputs that calls `generate()` when a preview is currently displayed, using the same condition the existing EC-button handler uses.
   - Add `dot_shape`, `eye_border`, `eye_center` to the `gtag('event', 'generate', …)` payload in QR mode and `null` otherwise, mirroring `ec_level`.
   - Confirm `updateApiUrl(fd)` shows the new params without further changes.
-- [ ] T030 [US1] Run `python3 -m pytest`. T018–T022 must pass along with the whole suite. Then run the app (`python3 preview_app.py`), open `/generator`, and visually compare the 9 dot swatches with `specs/001-qr-shape-styles/assets/dot-shape-styles.png`: same order, recognisably the same silhouettes, Gapped square last. Tune the dot constants in `qr_shapes.py` if needed, re-run the tests, and record any tuned values in research.md §5.
+- [X] T030 [US1] Run `python3 -m pytest`. T018–T022 must pass along with the whole suite. Then run the app (`python3 preview_app.py`), open `/generator`, and visually compare the 9 dot swatches with `specs/001-qr-shape-styles/assets/dot-shape-styles.png`: same order, recognisably the same silhouettes, Gapped square last. Tune the dot constants in `qr_shapes.py` if needed, re-run the tests, and record any tuned values in research.md §5.
 
 **Checkpoint**: US1 is fully functional. Dot shapes work in the UI, preview, PNG and SVG downloads, and logs, and default output is unchanged. This is the MVP and can ship on its own.
 

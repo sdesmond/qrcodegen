@@ -368,6 +368,50 @@
     color: var(--accent);
   }
 
+  /* ── Shape style swatches ── */
+  .shape-group-label {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin: 0.75rem 0 0.4rem;
+  }
+  .shape-opts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .shape-opt {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 48px;
+    height: 48px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+    background: var(--surface2);
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: var(--transition);
+  }
+  .shape-opt:hover { border-color: var(--accent); color: var(--text); }
+  .shape-opt input {
+    position: absolute;
+    opacity: 0;
+    width: 1px;
+    height: 1px;
+    margin: 0;
+  }
+  .shape-opt:has(input:checked) {
+    background: rgba(108,99,255,0.2);
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+  .shape-opt:has(input:focus-visible) {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+  .shape-opt svg { display: block; }
+
   /* ── Generate Button ── */
   .btn-generate {
     width: 100%;
@@ -790,6 +834,17 @@
         <button class="ec-btn" data-ec="Q">Q <span style="font-weight:400;font-size:0.7rem">25%</span></button>
         <button class="ec-btn" data-ec="H">H <span style="font-weight:400;font-size:0.7rem">30%</span></button>
       </div>
+
+      {% macro shape_group(name, label) -%}
+      <p class="shape-group-label">{{ label }}</p>
+      <div class="shape-opts" role="radiogroup" aria-label="{{ label }}">
+        {%- for value, title, svg in shape_options[name] %}
+        <label class="shape-opt" title="{{ title }}"><input type="radio" name="{{ name }}" value="{{ value }}" aria-label="{{ title }}"{% if loop.first %} checked{% endif %}>{{ svg|safe }}</label>
+        {%- endfor %}
+      </div>
+      {%- endmacro %}
+      <p class="section-title">Shape style</p>
+      {{ shape_group('dot_shape', 'Dot shape') }}
     </div>
 
     <!-- ══ 1D Barcode options ══ -->
@@ -958,6 +1013,17 @@ document.querySelectorAll('.ec-btn').forEach(btn => {
   });
 });
 
+// ── Shape style ──
+const SHAPE_PARAMS = ['dot_shape', 'eye_border', 'eye_center'];
+function checkedShape(name) {
+  return document.querySelector(`input[name="${name}"]:checked`)?.value || 'square';
+}
+document.querySelectorAll('.shape-opts input').forEach(input => {
+  input.addEventListener('change', () => {
+    if (lastImageDataUrl) generate();  // keep the preview in sync
+  });
+});
+
 // ── Color sync ──
 function syncColor(which, val) {
   document.getElementById(which + '-hex').value = val;
@@ -980,6 +1046,10 @@ function collectFormData() {
   fd.append('margin', document.querySelector('[name=margin]').value);
   fd.append('fg_color', document.getElementById('fg-input').value);
   fd.append('bg_color', document.getElementById('bg-input').value);
+
+  if (currentFormat === 'qrcode') {
+    for (const name of SHAPE_PARAMS) fd.append(name, checkedShape(name));
+  }
 
   const ofmt = document.querySelector('[name=output_format]:checked');
   fd.append('output_format', ofmt ? ofmt.value : 'png');
@@ -1050,6 +1120,9 @@ async function generate() {
       content_type: currentFormat === 'qrcode' ? currentContentType : null,
       output_format: fd.get('output_format'),
       ec_level: currentFormat === 'qrcode' ? currentEC : null,
+      dot_shape: currentFormat === 'qrcode' ? fd.get('dot_shape') : null,
+      eye_border: currentFormat === 'qrcode' ? fd.get('eye_border') : null,
+      eye_center: currentFormat === 'qrcode' ? fd.get('eye_center') : null,
     });
 
     infoBanner.textContent = 'Generated successfully';
