@@ -1,0 +1,137 @@
+# tickets.toml for epic-qr-style-options. Order of tables is build order.
+
+[[entry]]
+id = 1
+type = "story"
+title = "Tracer: preset table with Square and Circle end to end"
+description = "Adds the shared preset JSON table and a preset parameter through the POST routes and a minimal UI picker, rendering Square and Circle."
+verify = "Selecting Circle in the UI and pressing Generate shows a circular-dot, circular-eye code that decodes; Square matches today's output."
+covers = ["CAP-1"]
+after = []
+hitl = false
+risk = "medium"
+
+[[entry]]
+id = 2
+type = "story"
+title = "Rounded, Horizontal, Vertical and Bubble presets"
+description = "Adds four presets as rows in the table with their dot, frame and ball renderers."
+verify = "Each of the four presets renders on PNG and SVG and decodes at the default size."
+covers = ["CAP-1"]
+after = [1]
+hitl = false
+risk = "medium"
+
+[[entry]]
+id = 3
+type = "story"
+title = "Fluid preset"
+description = "Adds merged-blob dots with rounded convex corners and smoothed concave fillets, rounded-square eyes and a blob ball."
+verify = "A Fluid code has no square edges, decodes on PNG and SVG, and the fillet radius is fixed by the scan test."
+covers = ["CAP-1"]
+after = [1]
+hitl = false
+risk = "high"
+unknown = "Fillet radius for concave joins is not yet known; tune it against the scan test."
+
+[[entry]]
+id = 4
+type = "story"
+title = "Color and gradient as an independent axis"
+description = "Adds solid and gradient color applied on top of any preset, with contrast clamped to a decodable minimum."
+verify = "Any color setting renders with any preset; a too-low-contrast pair is clamped or flagged."
+covers = ["CAP-3"]
+after = [1]
+hitl = false
+risk = "medium"
+
+[[entry]]
+id = 5
+type = "story"
+title = "Preset thumbnail strip"
+description = "Adds a client-side JS strip of upper-left crops of a demo QR for every preset, drawn in the chosen color."
+verify = "All presets show at all times and redraw when the color or gradient changes, with no request tied to the user's data."
+covers = ["CAP-2"]
+after = [2, 4]
+hitl = false
+risk = "low"
+
+[[entry]]
+id = 6
+type = "story"
+title = "Generate and Download state machine"
+description = "Makes Generate and Download strict inverses, dims the old code when stale, and marks a preset pick as a change."
+verify = "Any input or preset change enables Generate and disables Download; a fresh code does the reverse."
+covers = ["CAP-6"]
+after = [1]
+hitl = false
+risk = "medium"
+
+[[entry]]
+id = 7
+type = "story"
+title = "Scan check with persistent warning and one-click fix"
+description = "Adds the zxing-cpp dependency and decodes the server's own render at generate time, showing a persistent warning with a one-click fix."
+verify = "A deliberately failing code shows the warning and a fix button; applying it regenerates a code that decodes and clears the warning."
+covers = ["CAP-5"]
+after = [1, 6]
+hitl = true
+risk = "high"
+unknown = "Whether the Docker image can install the decoder under the dev machine's TLS interception; a person checks the build."
+notes = ["zxing-cpp is the assumed decoder; opencv-headless is the fallback."]
+
+[[entry]]
+id = 8
+type = "story"
+title = "Logo upgrade: fade, 1024 px and clear errors"
+description = "Shrinks dots near the logo, renders and stores the logo at about 1024 px, and shows rejection reasons inline."
+verify = "A logo-bearing code decodes; a rejected upload shows reason plus limit without blocking the form."
+covers = ["CAP-4"]
+after = [1, 7]
+hitl = false
+risk = "high"
+
+[[entry]]
+id = 9
+type = "story"
+title = "SVG print path with vector release check"
+description = "Keeps dots, eyes and frame vector in SVG output at poster size, with the logo embedded at its stored resolution."
+verify = "A 1 ft SVG with a logo opens correctly in a vector editor and the logo is not visibly soft."
+covers = ["CAP-7"]
+after = [2, 3, 8]
+hitl = true
+risk = "medium"
+notes = ["A person opens the file in a vector editor."]
+
+[[entry]]
+id = 10
+type = "story"
+title = "Saved logo library"
+description = "Stores re-encoded logos in SQLite on a Docker volume, capped at 20 and env-configurable, with delete and inline confirm."
+verify = "A saved logo can be picked in one action; deleting it clears references with a note; the 21st upload is refused with the cap shown."
+covers = ["CAP-8"]
+after = [8]
+hitl = false
+risk = "medium"
+
+[[entry]]
+id = 11
+type = "story"
+title = "Drop /api/qr and the Cloudflare tunnel notes"
+description = "Removes the GET /api/qr route, its tests, and the tunnel, edge-cache and lnklab notes from the docs."
+verify = "GET /api/qr returns 404, the test suite passes, and no tunnel or lnklab references remain in CLAUDE.md or docs."
+covers = ["CAP-9"]
+after = []
+hitl = false
+risk = "low"
+
+[[entry]]
+id = 12
+type = "story"
+title = "Refactor sweep"
+description = "Cleanup only: tidies the epic's code and takes review findings deferred during the epic."
+verify = "The test suite passes and no deferred finding remains open."
+covers = []
+after = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
+hitl = false
+risk = "low"

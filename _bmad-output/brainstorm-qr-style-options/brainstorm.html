@@ -1,0 +1,600 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Modules, Eyes and Blobs</title>
+<style>
+:root{
+  --bg:#f6f3ec; --paper:#fffdf8; --ink:#17161a; --mute:#6a665e; --line:#d9d3c4;
+  --a:#1f6feb; --a2:#e0457b; --ok:#1f9d55; --warn:#d98e04; --bad:#d6334a;
+  --user:#e0457b; --coach:#1f6feb; --shadow:0 1px 0 rgba(0,0,0,.04),0 14px 30px -18px rgba(40,30,10,.35);
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --serif:Georgia,"Iowan Old Style",serif;
+  --sans:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#0f0f13; --paper:#18181e; --ink:#f1eee6; --mute:#9b978c; --line:#34333c;
+    --a:#6aa6ff; --a2:#ff7aa8; --ok:#4cd987; --warn:#ffb938; --bad:#ff6b80;
+    --user:#ff7aa8; --coach:#6aa6ff; --shadow:0 14px 30px -18px #000;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0f0f13; --paper:#18181e; --ink:#f1eee6; --mute:#9b978c; --line:#34333c;
+  --a:#6aa6ff; --a2:#ff7aa8; --ok:#4cd987; --warn:#ffb938; --bad:#ff6b80;
+  --user:#ff7aa8; --coach:#6aa6ff; --shadow:0 14px 30px -18px #000;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 var(--sans);
+  background-image:radial-gradient(var(--line) 1px,transparent 1.2px);background-size:22px 22px}
+.wrap{max-width:1040px;margin:0 auto;padding:0 16px}
+h1,h2,h3{font-family:var(--serif);font-weight:700;line-height:1.1;margin:0}
+h2{font-size:clamp(28px,5vw,44px)}
+h3{font-size:20px}
+p{margin:.4em 0}
+.mono{font-family:var(--mono)}
+section{padding:56px 0;border-top:1px dashed var(--line);position:relative}
+.kicker{font:600 12px var(--mono);letter-spacing:.16em;text-transform:uppercase;color:var(--mute);display:flex;gap:10px;align-items:center;margin-bottom:10px}
+.kicker b{display:inline-grid;place-items:center;width:26px;height:26px;background:var(--ink);color:var(--bg);border-radius:6px}
+.lede{color:var(--mute);max-width:60ch;font-size:18px}
+.card{background:var(--paper);border:1px solid var(--line);border-radius:16px;padding:18px;box-shadow:var(--shadow)}
+.tag{display:inline-block;font:700 10px var(--mono);letter-spacing:.08em;text-transform:uppercase;padding:2px 7px;border-radius:99px;color:#fff;vertical-align:2px;margin-right:6px}
+.tag.u{background:var(--user)} .tag.c{background:var(--coach)} .tag.d{background:var(--ink);color:var(--bg)}
+ul.ideas{list-style:none;padding:0;margin:14px 0;display:grid;gap:8px}
+ul.ideas li{background:var(--paper);border:1px solid var(--line);border-left:4px solid var(--coach);border-radius:10px;padding:9px 12px;font-size:15px}
+ul.ideas li.u{border-left-color:var(--user)}
+ul.ideas li.d{border-left-color:var(--ink);background:transparent;border-style:dashed}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+@media(max-width:760px){.grid2,.grid3{grid-template-columns:1fr}}
+svg{display:block;max-width:100%}
+.sw{color:var(--ink)}
+/* topbar */
+.top{display:flex;justify-content:space-between;align-items:center;padding:18px 0;font:12px var(--mono);color:var(--mute)}
+.top button{font:inherit;border:1px solid var(--line);background:var(--paper);color:var(--ink);border-radius:99px;padding:5px 12px;cursor:pointer}
+/* hero */
+.hero{display:grid;grid-template-columns:1.1fr .9fr;gap:30px;align-items:center;padding:30px 0 60px}
+@media(max-width:800px){.hero{grid-template-columns:1fr}}
+.hero h1{font-size:clamp(40px,8vw,84px);letter-spacing:-.02em}
+.hero h1 em{font-style:normal;background:linear-gradient(90deg,var(--a),var(--a2));-webkit-background-clip:text;background-clip:text;color:transparent}
+.heroqr{position:relative;background:#fff;border-radius:22px;padding:22px;box-shadow:var(--shadow);border:1px solid var(--line);overflow:hidden;color:#111}
+.beam{position:absolute;left:0;right:0;height:3px;background:linear-gradient(90deg,transparent,var(--a2),transparent);box-shadow:0 0 18px 4px var(--a2);animation:scan 3.4s ease-in-out infinite}
+@keyframes scan{0%,100%{top:6%}50%{top:92%}}
+.badge{display:inline-flex;align-items:center;gap:10px;border:2px solid var(--ok);color:var(--ok);border-radius:12px;padding:6px 12px;font:700 13px var(--mono);background:var(--paper);transform:rotate(-3deg)}
+.badge .g{font-size:30px;line-height:1;font-family:var(--serif)}
+.badge.B{border-color:var(--warn);color:var(--warn)} .badge.C{border-color:var(--bad);color:var(--bad)}
+.badge.F{border-color:var(--bad);color:#fff;background:var(--bad)}
+.heroqr .badge{position:absolute;right:14px;bottom:14px}
+/* 1 observer */
+.lens{display:grid;grid-template-columns:260px 1fr;gap:22px;align-items:start}
+@media(max-width:760px){.lens{grid-template-columns:1fr}}
+.stage{background:#fff;color:#111;border-radius:14px;padding:14px;overflow:hidden;position:relative}
+.stage svg{transition:filter .15s}
+input[type=range]{width:100%;accent-color:var(--a2)}
+.tiers{display:flex;gap:8px;margin-top:10px;font:12px var(--mono)}
+.tiers span{flex:1;text-align:center;padding:4px;border-radius:6px;border:1px solid var(--line);color:var(--mute)}
+.tiers span.on{background:var(--ink);color:var(--bg)}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.chip{font:12px var(--mono);border:1px solid var(--line);border-radius:99px;padding:3px 10px;background:var(--paper)}
+/* 2 one feature */
+.spot{display:grid;grid-template-columns:repeat(7,1fr);gap:10px;margin:18px 0}
+@media(max-width:700px){.spot{grid-template-columns:repeat(4,1fr)}}
+.spot .l{border:1px solid var(--line);border-radius:12px;padding:10px 4px;text-align:center;font:11px var(--mono);color:var(--mute);background:var(--paper);filter:grayscale(1);opacity:.45}
+.spot .l.on{filter:none;opacity:1;color:var(--ink);border:2px solid var(--a2);transform:scale(1.07);box-shadow:0 0 0 6px color-mix(in srgb,var(--a2) 18%,transparent)}
+.spot .l svg{margin:0 auto 4px;width:48px}
+.strike{text-decoration:line-through;color:var(--mute)}
+/* 3 jtbd */
+.clock{display:grid;grid-template-columns:200px 1fr;gap:22px;align-items:center}
+@media(max-width:700px){.clock{grid-template-columns:1fr;justify-items:center}}
+.ring circle.t{stroke:var(--line)}
+.ring circle.p{stroke:var(--a2);stroke-linecap:round;stroke-dasharray:440;stroke-dashoffset:440;animation:tick 6s linear infinite}
+@keyframes tick{0%{stroke-dashoffset:440}85%,100%{stroke-dashoffset:0}}
+.path{display:flex;flex-wrap:wrap;gap:6px;align-items:center;font:13px var(--mono)}
+.path .s{background:var(--ink);color:var(--bg);padding:4px 10px;border-radius:6px}
+.path .x{opacity:.5}
+.quote{font:italic 22px/1.3 var(--serif);border-left:4px solid var(--user);padding-left:16px;margin:14px 0}
+/* 4 trait transfer */
+.filters{display:flex;gap:10px;overflow-x:auto;padding:10px 4px 14px;scroll-snap-type:x proximity}
+.fbtn{flex:0 0 96px;scroll-snap-align:start;border:2px solid var(--line);background:var(--paper);border-radius:14px;padding:8px 6px;cursor:pointer;text-align:center;font:12px var(--mono);color:var(--ink)}
+.fbtn svg{width:76px;height:76px;margin:0 auto 4px;border-radius:8px;background:var(--pbg,#fff)}
+.fbtn[aria-pressed=true]{border-color:var(--a2);transform:translateY(-3px);box-shadow:0 8px 16px -8px var(--a2)}
+.tt{display:grid;grid-template-columns:1fr 260px;gap:20px;align-items:start}
+@media(max-width:760px){.tt{grid-template-columns:1fr}}
+.ctrl{display:flex;gap:14px;flex-wrap:wrap;align-items:center;font:12px var(--mono);color:var(--mute)}
+.ctrl input[type=color]{width:42px;height:30px;border:1px solid var(--line);border-radius:6px;background:none;padding:0}
+table.pt{width:100%;border-collapse:collapse;font:12px var(--mono)}
+table.pt th,table.pt td{padding:6px 8px;border-bottom:1px solid var(--line);text-align:left}
+table.pt tr.hit td{background:color-mix(in srgb,var(--a2) 16%,transparent)}
+/* 5 worst */
+.worst{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+@media(max-width:760px){.worst{grid-template-columns:1fr}}
+.frame-bad{background:repeating-linear-gradient(45deg,#ff2d95,#ff2d95 8px,#ffe600 8px,#ffe600 16px);padding:10px;border-radius:6px;position:relative;filter:saturate(1.2)}
+.frame-bad .inner{background:#fff;padding:6px}
+.frame-bad i{position:absolute;font:italic 700 8px cursive;color:#ffe3f0;left:12px;top:12px;max-width:80%;line-height:1.1}
+.frame-good{border:3px solid var(--ink);border-radius:18px;padding:10px 10px 0;background:#fff;color:#111}
+.frame-good .cta{margin:8px -10px 0;background:var(--ink);color:var(--bg);text-align:center;font:700 15px var(--sans);padding:7px;border-radius:0 0 13px 13px}
+.flip{display:flex;align-items:center;gap:10px;margin:6px 0;font-size:14px}
+.flip .w{flex:1;color:var(--bad);text-decoration:line-through;text-decoration-color:var(--bad)}
+.flip .a{color:var(--mute);font:20px var(--mono)}
+.flip .r{flex:1;color:var(--ok);font-weight:600}
+@media(max-width:560px){.flip{flex-wrap:wrap}}
+.qz{outline:2px dashed var(--a2);outline-offset:-1px}
+/* 6 scamper */
+.scamper{display:grid;grid-template-columns:repeat(7,1fr);gap:8px;margin:20px 0}
+@media(max-width:760px){.scamper{grid-template-columns:repeat(4,1fr)}}
+.sc{aspect-ratio:1;border-radius:12px;display:grid;place-items:center;font:700 34px var(--serif);background:var(--ink);color:var(--bg);position:relative}
+.sc small{position:absolute;bottom:6px;font:9px var(--mono);letter-spacing:.06em;text-transform:uppercase;opacity:.75}
+.sc.dim{background:var(--paper);color:var(--mute);border:1px dashed var(--line)}
+.sc.lit{background:var(--a2);color:#fff}
+.rule{display:grid;grid-template-columns:auto 1fr auto 1fr;gap:6px 12px;align-items:center;font:13px var(--mono);margin:6px 0}
+.pair{display:flex;gap:14px;flex-wrap:wrap}
+.pair figure{margin:0;text-align:center;font:11px var(--mono);color:var(--mute)}
+.pair svg{width:84px;height:84px;background:#fff;border-radius:10px;padding:4px;margin-bottom:4px}
+/* 7 star */
+.starwrap{position:relative;max-width:760px;margin:20px auto}
+.starwrap svg{width:100%;height:auto;overflow:visible}
+.starwrap text{font-family:var(--sans)}
+.qlist{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}
+@media(max-width:760px){.qlist{grid-template-columns:1fr}}
+.qlist .card{padding:12px;font-size:14px}
+.qlist .card b{display:block;font:700 11px var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--a2)}
+.ratio{display:flex;height:22px;border-radius:99px;overflow:hidden;font:700 11px var(--mono);margin:12px 0}
+.ratio div{display:grid;place-items:center;color:#fff}
+/* converge */
+.board{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+@media(max-width:900px){.board{grid-template-columns:1fr 1fr}}
+@media(max-width:520px){.board{grid-template-columns:1fr}}
+.col{background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:12px;border-top:6px solid var(--c)}
+.col h3{font-size:16px;display:flex;justify-content:space-between}
+.col h3 span{font:11px var(--mono);color:var(--mute)}
+.col ul{list-style:none;margin:10px 0 0;padding:0;display:grid;gap:7px}
+.col li{font-size:13px;padding:7px 9px;border-radius:8px;background:color-mix(in srgb,var(--c) 10%,transparent);border:1px solid color-mix(in srgb,var(--c) 30%,transparent)}
+.col.w li{text-decoration:line-through;color:var(--mute)}
+/* synthesis */
+.climax{background:var(--ink);color:var(--bg);border-radius:28px;padding:36px 22px;margin:0 -8px;position:relative;overflow:hidden}
+.climax h2{color:var(--bg)}
+.climax .kicker{color:color-mix(in srgb,var(--bg) 60%,transparent)}
+.climax .kicker b{background:var(--bg);color:var(--ink)}
+.pillars{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin:24px 0}
+@media(max-width:760px){.pillars{grid-template-columns:1fr}}
+.pillar{background:color-mix(in srgb,var(--bg) 8%,transparent);border:1px solid color-mix(in srgb,var(--bg) 22%,transparent);border-radius:16px;padding:16px}
+.pillar .n{font:700 12px var(--mono);color:var(--a2)}
+.pillar h3{font-size:24px;margin:4px 0}
+.pillar p{font-size:14px;opacity:.85}
+.insights{display:grid;gap:12px}
+.ins{display:grid;grid-template-columns:44px 1fr;gap:12px;align-items:start;border-top:1px solid color-mix(in srgb,var(--bg) 22%,transparent);padding-top:12px}
+.ins .ic{width:44px;height:44px;background:var(--bg);border-radius:10px;display:grid;place-items:center;color:var(--ink)}
+.ins b{font-family:var(--serif);font-size:19px}
+.ins p{margin:2px 0 0;font-size:14px;opacity:.85}
+.machine{display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin:14px 0;padding:14px;border-radius:14px;background:color-mix(in srgb,var(--bg) 8%,transparent)}
+.machine button{font:700 14px var(--sans);border-radius:10px;padding:10px 16px;border:2px solid var(--bg);cursor:pointer;background:transparent;color:var(--bg)}
+.machine button.p{background:var(--bg);color:var(--ink)}
+.machine button:disabled{opacity:.28;cursor:not-allowed;border-style:dashed}
+.machine .st{font:12px var(--mono);margin-left:auto;opacity:.8}
+.mini{width:84px;height:84px;background:#fff;border-radius:10px;padding:5px;transition:opacity .3s,filter .3s;color:#111}
+.mini.stale{opacity:.35;filter:blur(1.5px)}
+.row-big{font:13px var(--mono);background:var(--bg);color:var(--ink);border-radius:12px;padding:12px;overflow-x:auto;margin-top:8px}
+.row-big span{display:inline-block;padding:2px 6px;border-radius:5px;margin-right:4px}
+.final{margin-top:26px;font:italic clamp(20px,3.4vw,30px)/1.3 var(--serif);text-align:center}
+footer{padding:36px 0 60px;text-align:center;font:12px var(--mono);color:var(--mute)}
+@media (prefers-reduced-motion:reduce){.beam,.ring circle.p{animation:none}.ring circle.p{stroke-dashoffset:0}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top"><span>BRAINSTORM / QR STYLE OPTIONS / 2026-10-06</span><button id="theme" type="button">toggle theme</button></div>
+
+  <header class="hero">
+    <div>
+      <div class="kicker">Keepsake of a session</div>
+      <h1>Modules, eyes &amp; <em>blobs</em></h1>
+      <p class="lede">A brainstorm about how far a QR generator should go on style. It started with a screenshot of ~50 shapes and ended with seven presets, a safety net, and a promise to stay fast.</p>
+      <p style="margin-top:16px"><span class="tag u">user</span> ideas and decisions from the human &nbsp; <span class="tag c">coach</span> ideas from the facilitator</p>
+    </div>
+    <div class="heroqr" aria-label="Stylized QR corner with a scan beam">
+      <div id="heroSvg"></div>
+      <div class="beam"></div>
+      <div class="badge"><span class="g">A</span><span>SCAN GRADE<br>verified</span></div>
+    </div>
+  </header>
+
+  <!-- 1 OBSERVER EFFECT -->
+  <section id="observer">
+    <div class="kicker"><b>1</b> Technique / Observer Effect</div>
+    <h2>Watching the code changes the code</h2>
+    <p class="lede">What if the app looked at its own output the way a phone would? The server decodes its own render, then grades how hard that was.</p>
+    <div class="card lens" style="margin-top:20px">
+      <div>
+        <div class="stage"><div id="obsSvg"></div></div>
+        <label class="mono" style="font-size:12px;display:block;margin-top:10px">Stress: blur + shrink <span id="blurv"></span></label>
+        <input id="blur" type="range" min="0" max="7" step="0.1" value="0" aria-label="Blur stress">
+        <div class="tiers"><span data-g="A">A</span><span data-g="B">B</span><span data-g="C">C</span><span data-g="F">fail</span></div>
+        <div style="margin-top:12px"><span id="obsBadge" class="badge"><span class="g">A</span><span>STRESS GRADE</span></span></div>
+      </div>
+      <div>
+        <ul class="ideas">
+          <li class="u"><span class="tag u">user</span>Live scan check on every style change; warn if the styled code fails to decode.</li>
+          <li><span class="tag c">coach</span>Server decodes its own render (zxing-cpp / OpenCV) and returns <span class="mono">scan_ok</span> + confidence.</li>
+          <li class="u"><span class="tag u">user</span>Stress-test mode: blur and shrink before decoding, to mimic poor cameras.</li>
+          <li><span class="tag c">coach</span>Tiered grade A/B/C by how much degradation still decodes, instead of pass/fail.</li>
+          <li><span class="tag c">coach</span>Stress presets by use: business card, billboard, glossy sticker, screen moire.</li>
+          <li class="u"><span class="tag u">user</span>Curate: fewer, higher-scoring shapes beat the full ~50.</li>
+          <li><span class="tag c">coach</span>Pick the curated set empirically: run every candidate through the stress test as a rerunnable pytest.</li>
+          <li class="u"><span class="tag u">user</span>Two-tier catalog; risky shapes hidden behind a toggle. <span class="strike">warn only</span> (later revised, see Starbursting)</li>
+        </ul>
+        <div class="chips"><span class="chip">business card</span><span class="chip">billboard</span><span class="chip">glossy sticker</span><span class="chip">screen moire</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 2 ONE FEATURE ONLY -->
+  <section id="one">
+    <div class="kicker"><b>2</b> Technique / One Feature Only</div>
+    <h2>If you could only build <em style="font-style:normal;color:var(--a2)">one</em>: the dots</h2>
+    <p class="lede"><span class="tag u">user</span>Dots are the bulk of the QR code, so they win the spotlight. The rest of the layers dim.</p>
+    <div class="spot" id="spot"></div>
+    <div class="grid2">
+      <ul class="ideas">
+        <li><span class="tag c">coach</span>Neighbor-aware rendering: round the outer corners only where no neighbor exists (connected blobs via SVG path union).</li>
+        <li><span class="tag c">coach</span>Dot size / roundness slider with a live grade. <span class="strike">tunable</span></li>
+        <li><span class="tag c">coach</span>Gradient dots; clamp stops so contrast stays decodable.</li>
+        <li class="u"><span class="tag u">user</span>Premium dots = gradients + colors, spacing and corner roundness as parametric controls. <span class="strike">sliders</span></li>
+      </ul>
+      <ul class="ideas">
+        <li class="u"><span class="tag u">user</span>Second feature: the center logo, the one real way to personalize.</li>
+        <li><span class="tag c">coach</span>Shape-aware clear zone and a recomputed EC budget instead of a fixed 10-30%.</li>
+        <li class="u"><span class="tag u">user</span>Dots near the logo fade out with a soft falloff.</li>
+        <li><span class="tag c">coach</span>Fade by shrinking dot size, not opacity: decoders binarize, gray mush hurts.</li>
+        <li class="d"><span class="tag d">insight</span>Parametric dots subsume most discrete shapes: the gallery becomes presets.</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- 3 JTBD -->
+  <section id="jtbd">
+    <div class="kicker"><b>3</b> Technique / Job to Be Done</div>
+    <h2>Thirty seconds, then move on</h2>
+    <div class="quote"><span class="tag u">user</span>"When I need a quick QR, I want to generate one in under 30 seconds so I can move on."</div>
+    <div class="card clock">
+      <svg class="ring" viewBox="0 0 160 160" width="180" height="180" role="img" aria-label="30 second ring">
+        <circle class="t" cx="80" cy="80" r="70" fill="none" stroke-width="10"/>
+        <circle class="p" cx="80" cy="80" r="70" fill="none" stroke-width="10" transform="rotate(-90 80 80)"/>
+        <text x="80" y="86" text-anchor="middle" font-family="Georgia,serif" font-size="38" font-weight="700" fill="currentColor">30s</text>
+      </svg>
+      <div>
+        <div class="path"><span class="s">type content</span><span class="x">&rarr;</span><span class="s">Generate</span><span class="x">&rarr;</span><span class="s">Download</span></div>
+        <p class="mono" style="font-size:12px;color:var(--mute)">Everything else (Style panel, brand kit, logos) stays collapsed and opt-in.</p>
+        <p>Personas span the home wifi sharer to the enterprise social media manager.</p>
+      </div>
+    </div>
+    <ul class="ideas">
+      <li><span class="tag c">coach</span>Tension named: speed vs depth. Styling is opt-in and never slows the default path.</li>
+      <li><span class="tag c">coach</span>Progressive disclosure: content + Download first, collapsed Style panel, a preset row before any slider.</li>
+      <li><span class="tag c">coach</span>Remember last style; content-type templates (wifi, vCard, URL) pre-pick sensible defaults.</li>
+      <li class="u"><span class="tag u">user</span>Presets (rounded, square...) that set eye frame, eye ball and dots in one click.</li>
+      <li class="u"><span class="tag u">user</span>Save uploaded logos for reuse. <span class="tag u">user</span>Self-hosted, so server storage is fine.</li>
+      <li><span class="tag c">coach</span>SQLite file in a docker volume; logos stored as re-encoded PNG; saved "brand" = logo + preset + colors.</li>
+      <li class="u"><span class="tag u">user</span>Decision: remove the public Cloudflare tunnel. Private LAN only, so abuse worries melt away.</li>
+    </ul>
+  </section>
+
+  <!-- 4 TRAIT TRANSFER -->
+  <section id="trait">
+    <div class="kicker"><b>4</b> Technique / Trait Transfer</div>
+    <h2>Borrow the Instagram filter strip</h2>
+    <p class="lede"><span class="tag u">user</span>Pick a look from a row of thumbnails. Names say the shape: square, circle, rounded... Each one sets dots, outer eye and inner eye together. Try it, this is the real idea.</p>
+    <div class="card" style="margin-top:20px">
+      <div class="filters" id="filters" role="group" aria-label="Preset strip"></div>
+      <div class="tt">
+        <div class="stage" style="padding:18px"><div id="bigQr"></div></div>
+        <div>
+          <h3 id="pname">Square</h3>
+          <p class="mono" style="font-size:12px;color:var(--mute)" id="pdesc"></p>
+          <div class="ctrl" style="margin:12px 0">
+            <label>from <input type="color" id="c1" value="#17161a"></label>
+            <label>to <input type="color" id="c2" value="#17161a"></label>
+          </div>
+          <p class="mono" style="font-size:11px;color:var(--mute)"><span class="tag u">user</span>colors are separate from shape: a second axis applied on top of any preset.</p>
+          <table class="pt" id="ptable"></table>
+        </div>
+      </div>
+    </div>
+    <ul class="ideas">
+      <li class="u"><span class="tag u">user</span><strong>No</strong> intensity slider: a preset applies a complete style as-is, no merging.</li>
+      <li><span class="tag c">coach</span>A preset is one coherent family; tweaking would relabel it "Circle (custom)".</li>
+      <li class="u"><span class="tag u">user</span>Thumbnails are static: a zoomed crop of a demo QR's upper-left corner, reflecting current colors.</li>
+    </ul>
+  </section>
+
+  <!-- 5 WORST POSSIBLE IDEA -->
+  <section id="worst">
+    <div class="kicker"><b>5</b> Technique / Worst Possible Idea</div>
+    <h2>Design the worst frame, then flip it</h2>
+    <div class="worst" style="margin-top:20px">
+      <div class="card">
+        <span class="tag d">the worst</span>
+        <div class="frame-bad" style="margin-top:10px"><i>scan me if u can!! limited offer terms apply see store for details scan scan scan</i><div class="inner"><div id="badSvg"></div></div></div>
+        <p class="mono" style="font-size:11px;color:var(--bad)">art over the quiet zone, 8px script, low contrast, a paragraph of text.</p>
+      </div>
+      <div class="card">
+        <span class="tag d">the flip</span>
+        <div class="frame-good" style="margin-top:10px"><div id="goodSvg" class="qz"></div><div class="cta">Scan me</div></div>
+        <p class="mono" style="font-size:11px;color:var(--ok)">quiet zone enforced (dashed), one calm label, big and contrasty.</p>
+      </div>
+    </div>
+    <div class="card" style="margin-top:16px">
+      <div class="flip"><span class="w">Frame art covering the quiet zone</span><span class="a">&rarr;</span><span class="r">Enforce a clear margin <span class="tag c">coach</span></span></div>
+      <div class="flip"><span class="w">Busy frame; nobody notices it scans</span><span class="a">&rarr;</span><span class="r">Simple, clean frames only <span class="tag u">user</span></span></div>
+      <div class="flip"><span class="w">Script font at 8px, low contrast</span><span class="a">&rarr;</span><span class="r">Min size and contrast enforced <span class="tag c">coach</span></span></div>
+      <div class="flip"><span class="w">Make the user read a lot of text</span><span class="a">&rarr;</span><span class="r">Minimal text, ~3 words, CTA chips <span class="tag u">user</span> <span class="tag c">coach</span></span></div>
+    </div>
+    <div class="chips"><span class="chip">none (default)</span><span class="chip">thin border</span><span class="chip">rounded border</span><span class="chip">label bar</span><span class="chip">Scan me</span><span class="chip">Wi-Fi</span><span class="chip">Menu</span><span class="chip">Follow us</span></div>
+  </section>
+
+  <!-- 6 SCAMPER -->
+  <section id="scamper">
+    <div class="kicker"><b>6</b> Technique / SCAMPER</div>
+    <h2>Eyes and edge cases, lens by lens</h2>
+    <div class="scamper" id="sc"></div>
+    <div class="grid2">
+      <div>
+        <h3>Eliminate: the eye pickers</h3>
+        <p><span class="tag u">user</span>No mismatched eye frame and ball; dots generally match the eyes. <span class="tag c">coach</span>14 frames x 16 balls collapse to a handful of matched pairs.</p>
+        <div class="card" style="margin-top:12px">
+          <div class="rule"><b>frame</b><span>echoes the dot END treatment</span><b>ball</b><span>echoes the dot DIRECTION</span></div>
+          <p class="mono" style="font-size:11px;color:var(--mute)"><span class="tag c">coach</span>Frame stays square-aspect so the 1:1:3:1:1 finder ratio holds.</p>
+          <div class="pair" id="pairs"></div>
+          <p class="mono" style="font-size:11px;color:var(--mute)"><span class="tag u">user</span>Vertical/horizontal: rounded frame + pill-stack ball. Bubble: gapped circles, ball is a dot grid.</p>
+        </div>
+      </div>
+      <ul class="ideas">
+        <li class="u"><span class="tag u">user</span>Must-have preset: fluid, blobs stuck together with rounded ends.</li>
+        <li class="u"><span class="tag u">user</span>Fluid has rounded-square eyes, never square edges. That rule applies <em>only</em> to fluid; Square stays square.</li>
+        <li><span class="tag c">coach</span>Corner radius is the shared parameter: fluid = high radius + merge; rounded = high radius, no merge; square = zero.</li>
+        <li><span class="tag c">coach</span>Reverse: inverted QR as a color option, graded and never the default.</li>
+        <li><span class="tag c">coach</span>Substitute: transparent or image background; the scan check composites it.</li>
+        <li><span class="tag c">coach</span>Put to other use: SVG for print, PNG for screen.</li>
+        <li class="d"><span class="tag u">user</span><span class="strike">Diamond preset</span> skipped entirely.</li>
+        <li><span class="tag c">coach</span>Preset spec as data: <span class="mono">{dot, frame_corner, ball}</span>, one row each.</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- 7 STARBURSTING -->
+  <section id="star">
+    <div class="kicker"><b>7</b> Technique / Starbursting</div>
+    <h2>Only questions, no answers</h2>
+    <p class="lede">The idea ratio was lopsided, so the user drove with questions and the coach mostly answered.</p>
+    <div class="starwrap"><svg viewBox="0 0 760 420" role="img" aria-label="Starburst of six question points around a QR eye"><g id="starG"></g></svg></div>
+    <div class="qlist">
+      <div class="card"><b>Why</b><span class="tag u">user</span>Why a scan warning if options are curated into presets? <span class="tag c">coach</span>Residual risks remain: color contrast, logo size, dense data, small output.</div>
+      <div class="card"><b>Can it fix itself?</b><span class="tag u">user</span>Suggest or apply changes instead of warning. <span class="tag u">decision</span>A persistent warning with a one-click fix, or fix manually, or dismiss.</div>
+      <div class="card"><b>When</b><span class="tag u">user</span>Auto-generate or button? <span class="tag u">decision</span>Manual Generate stays; scan runs at generate time.</div>
+      <div class="card"><b>What happens to the old QR</b><span class="tag c">coach</span>Preview state machine: empty, generating, fresh, stale; old code dims while regenerating.</div>
+      <div class="card"><b>What if the logo is bad</b><span class="tag u">user</span>Too big, wrong type, or an attack? <span class="tag c">coach</span>Existing checks (2 MB, allowlist, 16 MP header, no SVG, re-encode to PNG) plus plain-language inline errors.</div>
+      <div class="card"><b>How many, how big</b><span class="tag u">user</span>Cap on saved logos? Poster use (6x3 ft, code at least 1 ft)? <span class="tag c">coach</span>~24 logos, stored near 1024px; SVG is the print path.</div>
+    </div>
+    <div class="ratio" aria-label="Idea ratio"><div style="flex:9;background:var(--coach)">coach questions answered</div><div style="flex:3;background:var(--user)">user</div></div>
+  </section>
+
+  <!-- CONVERGE -->
+  <section id="converge">
+    <div class="kicker"><b>8</b> Converge / MoSCoW</div>
+    <h2>Sorting the pile</h2>
+    <p class="lede"><span class="tag u">user</span>Ready to converge. Frames = Could; the scan check = Must.</p>
+    <div class="board" style="margin-top:20px">
+      <div class="col" style="--c:var(--ok)"><h3>Must <span>7</span></h3><ul>
+        <li>Shape presets incl. fluid</li><li>Static, color-aware thumbnails</li><li>Solid / gradient color, separate</li><li>Logo upgrade: fade, ~1024px, clear errors</li><li>Inverse Generate / Download buttons</li><li>Scan check: decode, warning, one-click fix <span class="tag u">user</span></li><li>Drop /api/qr</li></ul></div>
+      <div class="col" style="--c:var(--a)"><h3>Should <span>2</span></h3><ul>
+        <li>Server-side saved logos with delete (SQLite)</li><li>SVG print path + vector-editor release check</li></ul></div>
+      <div class="col" style="--c:var(--warn)"><h3>Could <span>6</span></h3><ul>
+        <li>Frames <span class="tag u">user</span></li><li>Stress grades and presets</li><li>Saved presets / brands</li><li>Built-in icons</li><li>Print-size helper</li><li>Transparent / inverted background</li></ul></div>
+      <div class="col w" style="--c:var(--bad)"><h3>Won't <span>6</span></h3><ul>
+        <li>Diamond</li><li>Separate eye pickers</li><li>Blend slider</li><li>SVG logo uploads</li><li>Accounts / auth</li><li>GET shim</li></ul></div>
+    </div>
+    <p class="mono" style="font-size:12px;color:var(--mute);margin-top:12px"><span class="tag c">coach</span>Cost note: a decoder dependency (zxing-cpp or OpenCV) enters uv and Docker; check the Mobicip TLS pip issue first. <span class="tag u">user</span>Final cut: tunable spacing and roundness sliders dropped entirely. Presets only.</p>
+  </section>
+
+  <!-- SYNTHESIS -->
+  <section id="synthesis" style="border:0">
+    <div class="climax">
+      <div class="kicker"><b>9</b> Synthesis</div>
+      <h2>Presets. Safety. Thirty seconds.</h2>
+      <p style="opacity:.8;max-width:58ch"><span class="tag u">user</span>What matters most: presets, safety checks, and keeping the 30-second path simple.</p>
+      <div class="pillars">
+        <div class="pillar"><div class="n">01</div><h3>Presets</h3><p>Seven families. Shape is one decision, not three.</p><div id="pl1" style="display:flex;gap:5px;flex-wrap:wrap;margin-top:8px"></div></div>
+        <div class="pillar"><div class="n">02</div><h3>Safety</h3><p>Vetted offline by the scan test; a runtime check covers only color, logo and density.</p><div class="badge" style="margin-top:8px;background:var(--bg)"><span class="g">A</span><span>VERIFIED</span></div></div>
+        <div class="pillar"><div class="n">03</div><h3>30 seconds</h3><p>Default preset is Square, so nothing changes until you choose. Auto-fix keeps the path short.</p></div>
+      </div>
+      <div class="insights">
+        <div class="ins"><div class="ic"><svg width="28" height="28" viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="2.4"><rect x="3" y="3" width="22" height="22" rx="5"/><circle cx="14" cy="14" r="4" fill="currentColor"/></svg></div><div><b>Presets are safety moved to design time.</b><p>Every preset is vetted offline by the scan test. The runtime check handles only what presets cannot: color contrast, logo size, dense data. <span class="tag c">coach</span></p></div></div>
+        <div class="ins"><div class="ic"><svg width="28" height="28" viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M4 8h20M4 14h20M4 20h20"/><circle cx="20" cy="14" r="3.4" fill="currentColor"/></svg></div><div><b>One preset-table row drives everything.</b><p>The renderer, the thumbnail and the scan-test fixture all read the same row: <span class="mono">{dot, frame, ball}</span>. Add a row, get all three. <span class="tag c">coach</span></p></div></div>
+        <div class="ins"><div class="ic"><svg width="28" height="28" viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4v14m0 0l-6-6m6 6l6-6M5 23h18"/></svg></div><div><b>Download enabled = verified.</b><p>Generate and Download are strict inverses, and the scan runs at generate time. The UI state machine carries the guarantee. Play with it below. <span class="tag c">coach</span></p></div></div>
+        <div class="ins"><div class="ic"><svg width="28" height="28" viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="14" cy="14" r="9"/><path d="M5 14h18M14 5c4 4 4 14 0 18M14 5c-4 4-4 14 0 18"/></svg></div><div><b>Platform decisions unlocked the features.</b><p>Dropping the public tunnel and the GET shim opened server storage, bigger renders and per-instance libraries. <span class="tag c">coach</span></p></div></div>
+      </div>
+
+      <div class="machine" id="machine">
+        <div class="mini" id="mini"></div>
+        <button type="button" id="bEdit">Change input</button>
+        <button type="button" id="bGen" class="p">Generate</button>
+        <button type="button" id="bDl" class="p">Download</button>
+        <span class="badge" id="mbadge" style="background:var(--bg)"><span class="g">A</span><span>scan ok</span></span>
+        <span class="st" id="mst"></span>
+      </div>
+      <div class="row-big" id="rowbig"></div>
+      <p class="final">Pick a shape. Let the machine check it. Download what you can trust.</p>
+    </div>
+  </section>
+
+  <footer>modules, eyes and blobs / one keepsake / every swatch above is drawn from the same preset table</footer>
+</div>
+
+<script>
+(function(){
+"use strict";
+/* ---- the keystone: one row per preset drives every swatch on this page ---- */
+var PRESETS=[
+ {id:"square",name:"Square",dot:"square",fo:0,fi:0,ball:"square",note:"Zero radius, no merge. The default; max-safe."},
+ {id:"circle",name:"Circle",dot:"circle",fo:3.5,fi:2.5,ball:"circle",note:"Circular dots and circular eyes."},
+ {id:"rounded",name:"Rounded",dot:"rounded",fo:1.6,fi:.9,ball:"rounded",note:"High radius, no merge."},
+ {id:"horizontal",name:"Horizontal",dot:"hpill",fo:1.6,fi:.9,ball:"hstack",note:"Pill dots joined along x; ball is a horizontal pill stack."},
+ {id:"vertical",name:"Vertical",dot:"vpill",fo:1.6,fi:.9,ball:"vstack",note:"Pill dots joined along y; ball is a vertical pill stack."},
+ {id:"bubble",name:"Bubble",dot:"bubble",fo:1.6,fi:.9,ball:"grid",note:"Gapped circles; ball is a grid of dots."},
+ {id:"fluid",name:"Fluid",dot:"fluid",fo:2.2,fi:1.4,ball:"blob",note:"Neighbor-merged blobs; rounded-square eyes."}
+];
+var N=13, uid=0;
+function on(r,c){ if(r<8&&c<8) return false; return ((r*7+c*13+((r*c)%5)+(r>>1))%3)!==0; }
+function rr(x,y,w,h,r){ r=Math.min(r,w/2,h/2); if(r<=0) return "M"+x+" "+y+"h"+w+"v"+h+"h"+(-w)+"z";
+  return "M"+(x+r)+" "+y+"h"+(w-2*r)+"a"+r+" "+r+" 0 0 1 "+r+" "+r+"v"+(h-2*r)+"a"+r+" "+r+" 0 0 1 "+(-r)+" "+r+"h"+(-(w-2*r))+"a"+r+" "+r+" 0 0 1 "+(-r)+" "+(-r)+"v"+(-(h-2*r))+"a"+r+" "+r+" 0 0 1 "+r+" "+(-r)+"z"; }
+function circ(cx,cy,r){ return "M"+(cx-r)+" "+cy+"a"+r+" "+r+" 0 1 0 "+(2*r)+" 0a"+r+" "+r+" 0 1 0 "+(-2*r)+" 0z"; }
+function eye(p,x,y){
+  var d=rr(x,y,7,7,p.fo)+rr(x+1,y+1,5,5,p.fi), b="", i, j;
+  switch(p.ball){
+    case "square": b=rr(x+2,y+2,3,3,0);break;
+    case "circle": b=circ(x+3.5,y+3.5,1.5);break;
+    case "rounded": b=rr(x+2,y+2,3,3,.8);break;
+    case "blob": b=rr(x+2,y+2,3,3,1.2);break;
+    case "hstack": for(i=0;i<3;i++) b+=rr(x+2,y+2.05+i,3,.9,.45);break;
+    case "vstack": for(i=0;i<3;i++) b+=rr(x+2.05+i,y+2,.9,3,.45);break;
+    case "grid": for(i=0;i<3;i++)for(j=0;j<3;j++) b+=circ(x+2.5+j,y+2.5+i,.42);break;
+  }
+  return d+b;
+}
+function dots(p){
+  var d="",r,c;
+  for(r=0;r<N;r++){
+    if(p.dot==="hpill"){ c=0; while(c<N){ if(on(r,c)){ var s=c; while(c<N&&on(r,c))c++; d+=rr(s+.04,r+.08,c-s-.08,.84,.42);} else c++; } continue; }
+    if(p.dot==="vpill") continue;
+    for(c=0;c<N;c++){ if(!on(r,c)) continue;
+      switch(p.dot){
+        case "square": d+=rr(c,r,1,1,0);break;
+        case "circle": d+=circ(c+.5,r+.5,.47);break;
+        case "rounded": d+=rr(c+.04,r+.04,.92,.92,.3);break;
+        case "bubble": d+=circ(c+.5,r+.5,.3);break;
+        case "fluid":
+          d+=rr(c+.06,r+.06,.88,.88,.42);
+          if(on(r,c+1)&&c+1<N) d+=rr(c+.5,r+.06,1,.88,0);
+          if(on(r+1,c)&&r+1<N) d+=rr(c+.06,r+.5,.88,1,0);
+          break;
+      } }
+  }
+  if(p.dot==="vpill"){ for(c=0;c<N;c++){ r=0; while(r<N){ if(on(r,c)){ var s2=r; while(r<N&&on(r,c))r++; d+=rr(c+.08,s2+.04,.84,r-s2-.08,.42);} else r++; } } }
+  return d;
+}
+function qr(p,o){
+  o=o||{}; var f1=o.f1||"currentColor", f2=o.f2||f1, id="g"+(++uid), fill=f1, defs="";
+  if(f1!==f2){ defs='<defs><linearGradient id="'+id+'" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="'+f1+'"/><stop offset="1" stop-color="'+f2+'"/></linearGradient></defs>'; fill="url(#"+id+")"; }
+  var vb=o.crop||"0 0 "+N+" "+N;
+  var e=eye(p,0,0);
+  var extra=o.extraEyes? eye(p,N-7,0)+eye(p,0,N-7):"";
+  return '<svg viewBox="'+vb+'" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="'+p.name+' style QR corner" shape-rendering="geometricPrecision">'+defs+
+    (o.bg?'<rect x="-1" y="-1" width="'+(N+2)+'" height="'+(N+2)+'" fill="'+o.bg+'"/>':"")+
+    '<path fill="'+fill+'" fill-rule="evenodd" d="'+e+extra+dots(p)+'"/></svg>';
+}
+function P(id){ for(var i=0;i<PRESETS.length;i++) if(PRESETS[i].id===id) return PRESETS[i]; }
+function $(id){ return document.getElementById(id); }
+
+/* theme */
+var root=document.documentElement, tb=$("theme");
+tb.addEventListener("click",function(){
+  var dark=root.getAttribute("data-theme")==="dark"||(!root.getAttribute("data-theme")&&matchMedia("(prefers-color-scheme:dark)").matches);
+  root.setAttribute("data-theme",dark?"light":"dark");
+});
+
+/* hero: stylized corner motif, fluid + gradient, extra eye hints */
+$("heroSvg").innerHTML=qr(P("fluid"),{f1:"#1f6feb",f2:"#e0457b",extraEyes:false,crop:"0 0 13 13"});
+
+/* observer */
+$("obsSvg").innerHTML=qr(P("rounded"),{f1:"#111"});
+var blur=$("blur"), ob=$("obsBadge"), tiers=document.querySelectorAll(".tiers span");
+function gradeFor(v){ return v<=1.5?"A":v<=3.5?"B":v<=5?"C":"F"; }
+function upd(){
+  var v=parseFloat(blur.value), g=gradeFor(v);
+  $("obsSvg").firstChild.style.filter="blur("+v+"px)";
+  $("obsSvg").firstChild.style.transform="scale("+(1-v*.03)+")";
+  $("blurv").textContent="("+v.toFixed(1)+")";
+  ob.className="badge "+g; ob.innerHTML='<span class="g">'+(g==="F"?"X":g)+'</span><span>'+(g==="F"?"NO DECODE":"STRESS GRADE")+'</span>';
+  tiers.forEach(function(t){ t.classList.toggle("on",t.getAttribute("data-g")===g); });
+}
+blur.addEventListener("input",upd); upd();
+
+/* one feature: layer spotlight */
+var layers=["frame","logo","color","dots","eyes","scan","download"];
+$("spot").innerHTML=layers.map(function(l){
+  var p=P(l==="dots"?"bubble":"square");
+  var inner=l==="dots"||l==="eyes"?qr(P(l==="dots"?"bubble":"rounded"),{crop:"0 0 13 13"}):
+    '<svg viewBox="0 0 48 48" width="48" height="48"><rect x="6" y="6" width="36" height="36" rx="7" fill="none" stroke="currentColor" stroke-width="3" '+(l==="frame"?"":'stroke-dasharray="4 4"')+'/><circle cx="24" cy="24" r="7" fill="currentColor"/></svg>';
+  return '<div class="l'+(l==="dots"?" on":"")+'">'+inner+l+'</div>';
+}).join("");
+
+/* trait transfer */
+var cur="square", f=$("filters");
+function thumbs(){
+  var a=$("c1").value,b=$("c2").value;
+  f.innerHTML=PRESETS.map(function(p){
+    return '<button type="button" class="fbtn" data-id="'+p.id+'" aria-pressed="'+(p.id===cur)+'">'+qr(p,{f1:a,f2:b,bg:"#fff",crop:"0 0 11 11"})+p.name+'</button>';
+  }).join("");
+}
+function showBig(){
+  var p=P(cur), a=$("c1").value,b=$("c2").value;
+  $("bigQr").innerHTML=qr(p,{f1:a,f2:b,extraEyes:true});
+  $("pname").textContent=p.name; $("pdesc").textContent=p.note;
+  var h='<tr><th>id</th><th>dot</th><th>frame r</th><th>ball</th></tr>';
+  PRESETS.forEach(function(q){ h+='<tr'+(q.id===cur?' class="hit"':'')+'><td>'+q.id+'</td><td>'+q.dot+'</td><td>'+q.fo+'</td><td>'+q.ball+'</td></tr>'; });
+  $("ptable").innerHTML=h;
+}
+function all(){ thumbs(); showBig(); }
+f.addEventListener("click",function(e){ var b=e.target.closest(".fbtn"); if(!b) return; cur=b.getAttribute("data-id"); all(); });
+$("c1").addEventListener("input",all); $("c2").addEventListener("input",all);
+all();
+
+/* worst */
+$("badSvg").innerHTML=qr(P("bubble"),{f1:"#c9a0b4",bg:"#fff",extraEyes:true});
+$("goodSvg").innerHTML=qr(P("rounded"),{f1:"#111",extraEyes:true,crop:"-2 -2 17 17"});
+
+/* scamper */
+var S=[["S","Substitute","lit"],["C","Combine",""],["A","Adapt","dim"],["M","Modify","dim"],["P","Put to use","lit"],["E","Eliminate","lit"],["R","Reverse","lit"]];
+$("sc").innerHTML=S.map(function(s){ return '<div class="sc '+s[2]+'">'+s[0]+'<small>'+s[1]+'</small></div>'; }).join("");
+$("pairs").innerHTML=["square","rounded","horizontal","vertical","bubble","fluid"].map(function(id){
+  return '<figure>'+qr(P(id),{crop:"0 0 8 8",bg:"#fff",f1:"#111"})+id+'</figure>';
+}).join("");
+
+/* starburst */
+(function(){
+  var g="",cx=380,cy=210,qs=[["Why","scan warning?",-90],["Who","auto-fix?",-30],["When","generate?",30],["Where","old QR goes?",90],["What if","bad logo?",150],["How","many / big?",210]];
+  for(var i=0;i<24;i++){ var a=i*15*Math.PI/180, long=i%2===0, r1=70,r2=long?200:140;
+    g+='<line x1="'+(cx+Math.cos(a)*r1)+'" y1="'+(cy+Math.sin(a)*r1)+'" x2="'+(cx+Math.cos(a)*r2)+'" y2="'+(cy+Math.sin(a)*r2)+'" stroke="currentColor" stroke-opacity="'+(long?.35:.15)+'" stroke-width="2" stroke-dasharray="3 5"/>'; }
+  qs.forEach(function(q,i){ var a=q[2]*Math.PI/180, x=cx+Math.cos(a)*(i%3===0?170:190)*1.55, y=cy+Math.sin(a)*165;
+    x=Math.max(70,Math.min(690,x)); y=Math.max(32,Math.min(388,y));
+    g+='<line x1="'+(cx+Math.cos(a)*74)+'" y1="'+(cy+Math.sin(a)*74)+'" x2="'+x+'" y2="'+y+'" stroke="var(--a2)" stroke-width="2"/>'+
+      '<g transform="translate('+x+' '+y+')"><rect x="-62" y="-26" width="124" height="52" rx="14" fill="var(--paper)" stroke="var(--user)" stroke-width="2"/>'+
+      '<text y="-4" text-anchor="middle" font-size="15" font-weight="700" fill="var(--user)">'+q[0]+'?</text><text y="14" text-anchor="middle" font-size="11" fill="currentColor" opacity=".75">'+q[1]+'</text></g>'; });
+  g+='<circle cx="'+cx+'" cy="'+cy+'" r="64" fill="var(--paper)" stroke="currentColor" stroke-width="2"/>';
+  $("starG").innerHTML=g;
+  var s=document.createElementNS("http://www.w3.org/2000/svg","g"); s.setAttribute("transform","translate(342 172) scale(6)"); s.setAttribute("style","color:var(--ink)");
+  s.innerHTML=qr(P("fluid"),{crop:"0 0 7 7"}).replace(/^<svg[^>]*>/,"").replace(/<\/svg>$/,"").replace(/currentColor/g,"var(--ink)");
+  $("starG").appendChild(s);
+})();
+
+/* synthesis */
+$("pl1").innerHTML=PRESETS.map(function(p){ return '<div style="width:34px;height:34px;background:#fff;border-radius:6px;padding:2px;color:#111">'+qr(p,{crop:"0 0 9 9",f1:"#111"})+'</div>'; }).join("");
+var stale=false, mini=$("mini"), mst=$("mst");
+function mrender(){
+  mini.innerHTML=qr(P("fluid"),{f1:"#111",extraEyes:true});
+  mini.classList.toggle("stale",stale);
+  $("bGen").disabled=!stale; $("bDl").disabled=stale; $("bEdit").disabled=stale;
+  var mb=$("mbadge"); mb.style.visibility=stale?"hidden":"visible";
+  mst.textContent=stale?"input changed: generate to verify":"fresh + verified: download unlocked";
+}
+$("bEdit").addEventListener("click",function(){ stale=true; mrender(); });
+$("bGen").addEventListener("click",function(){ stale=false; mrender(); });
+$("bDl").addEventListener("click",function(){ mst.textContent="downloaded: qr-gradeA.svg"; });
+mrender();
+var rb=P("fluid");
+$("rowbig").innerHTML='<span style="background:#ffd9e6">id: "'+rb.id+'"</span><span style="background:#d6e6ff">dot: "'+rb.dot+'"</span><span style="background:#d9f5df">frame_corner: '+rb.fo+'</span><span style="background:#fff0c2">ball: "'+rb.ball+'"</span><br><small>renderer + thumbnail + scan-test fixture read this one row</small>';
+})();
+</script>
+</body>
+</html>
