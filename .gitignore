@@ -6,5 +6,6 @@ __pycache__/
 .venv/
 .agents/
 /.claude/skills
+/_bmad-output/
 .pytest_cache/
 *.log

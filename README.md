@@ -333,15 +333,18 @@ npx skills experimental_install
 npx skills add bmad-code-org/BMAD-METHOD --skill bmad
 ```
 
-To make the installed skills available to Claude Code as well, run:
+#### Using Claude Code
+
+If you use Claude Code, run the following from the repository root after
+installing the skills and before starting Claude Code:
 
 ```bash
 node scripts/link-skills.mjs
 ```
 
 This links `.claude/skills` to `.agents/skills`, using a junction on Windows
-and a relative directory symlink on macOS/Linux. Run it after installing
-skills in each checkout; rerunning it is safe, and skill updates are visible
+and a relative directory symlink on macOS/Linux. Run it once in each
+checkout; rerunning it is safe, and skill updates are visible
 automatically through the link. An existing conflicting destination is
 preserved and reported as an error.
 
