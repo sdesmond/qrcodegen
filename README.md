@@ -318,6 +318,21 @@ uv run pytest
 
 Open [http://localhost:5050/generator](http://localhost:5050/generator).
 
+### AI assistant skills
+
+The repo uses agent skills (the [BMad Method](https://github.com/bmad-code-org/BMAD-METHOD)
+skills) managed by the [`skills`](https://github.com/vercel-labs/skills) CLI.
+Only `skills-lock.json` is committed; the skill files in `.agents/skills/`
+are git-ignored and restored from the lock (requires Node.js):
+
+```bash
+# Restore the skills recorded in skills-lock.json
+npx skills experimental_install
+
+# Add a new skill (updates skills-lock.json — commit it)
+npx skills add bmad-code-org/BMAD-METHOD --skill bmad
+```
+
 ---
 
 ## 📦 Tech Stack
