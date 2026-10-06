@@ -8,3 +8,4 @@ __pycache__/
 /.claude/skills
 .pytest_cache/
 *.log
+/_bmad/render/
