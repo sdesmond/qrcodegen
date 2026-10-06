@@ -1,0 +1,23 @@
+[project]
+name = "qrcodegen"
+version = "0.1.0"
+description = "QR code + barcode generator service"
+requires-python = ">=3.13"
+dependencies = [
+    "Flask>=2.3",
+    "gunicorn>=21.0",
+    "qrcode[pil]>=7.4",
+    "python-barcode>=0.15",
+    "Pillow>=10.0",
+]
+
+[dependency-groups]
+dev = ["pytest>=7.0"]
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+addopts = "-v --tb=short"

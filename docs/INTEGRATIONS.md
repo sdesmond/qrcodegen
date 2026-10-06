@@ -131,7 +131,7 @@ Where the integration will plug into the QR generator:
 | `shortener_client.py` *(new)* | Thin HTTP client: `shorten(url, metadata) → short_url` with timeout + fallback |
 | `qr_generator.py` | Read env vars at module load; pass `shortener_enabled` flag to template; call `shortener_client.shorten()` from `_build_qr_data()` URL branch when `track_scans=on` form field is present |
 | `templates/qr_generator.html` | Conditional checkbox under URL content type when `shortener_enabled` is true |
-| `requirements.txt` | Add `requests` (or stdlib `urllib`) |
+| `pyproject.toml` | `uv add requests` (or use stdlib `urllib`) |
 | `nginx/nginx.conf` | No change — shortener has its own deployment |
 
 ### Schema notes (shortener side, for reference)

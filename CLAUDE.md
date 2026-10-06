@@ -3,8 +3,8 @@
 QR code + barcode generator service at https://qrcode.chrisrmiller.com.
 Single-container Flask app behind Cloudflare Tunnel.
 
-**Stack:** Flask + qrcode + python-barcode + Pillow + Gunicorn.
-**Tests:** pytest, run `python3 -m pytest`.
+**Stack:** Flask + qrcode + python-barcode + Pillow + Gunicorn (Python 3.13, managed with uv).
+**Tests:** pytest, run `uv run pytest`.
 **Branch:** `master` (not `main`).
 
 ---
@@ -57,6 +57,8 @@ which 400s).
 ## Repo layout
 
 ```
+pyproject.toml          # deps, dev group (pytest), pytest config
+uv.lock                 # locked versions — commit changes
 qr_generator.py         # blueprint, routes, helpers
 preview_app.py          # Flask app factory wiring the blueprint
 gunicorn_config.py      # production WSGI config
@@ -66,6 +68,13 @@ docker-compose.yml      # single 'app' service
 Dockerfile
 docs/                   # INTEGRATIONS.md notes
 ```
+
+## Dependencies
+
+Managed by uv — no manual venv. `uv add <pkg>` (runtime) or
+`uv add --dev <pkg>`; commit `pyproject.toml` + `uv.lock`. The Dockerfile
+runs `uv sync --frozen --no-dev`, so a stale lock fails the build. Rebuild
+the image after dependency changes.
 
 ## Deploy
 

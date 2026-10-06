@@ -1,4 +1,4 @@
-FROM python:3.9-slim
+FROM python:3.13-slim
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libfreetype6-dev libjpeg-dev zlib1g-dev \
@@ -6,8 +6,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+COPY --from=ghcr.io/astral-sh/uv:0.11.6 /uv /usr/local/bin/uv
+ENV UV_PROJECT_ENVIRONMENT=/opt/venv UV_LINK_MODE=copy PATH=/opt/venv/bin:$PATH
+
+COPY pyproject.toml uv.lock .python-version ./
+RUN uv sync --frozen --no-dev --no-install-project
 
 COPY qr_generator.py .
 COPY preview_app.py .

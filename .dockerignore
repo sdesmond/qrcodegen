@@ -1,0 +1,9 @@
+.git
+.venv
+.pytest_cache
+__pycache__
+_bmad
+_bmad-output
+.agents
+tests
+docs

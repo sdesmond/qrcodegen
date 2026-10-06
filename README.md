@@ -19,7 +19,7 @@
 **A beautiful, self-hosted QR code & barcode generator — built for speed, security, and style.**
 
 [![Live Demo](https://img.shields.io/badge/Live%20Demo-qrcode.chrisrmiller.com-6c63ff?style=for-the-badge&logo=firefox)](https://qrcode.chrisrmiller.com)
-[![Python](https://img.shields.io/badge/Python-3.9+-3776ab?style=for-the-badge&logo=python&logoColor=white)](https://python.org)
+[![Python](https://img.shields.io/badge/Python-3.13+-3776ab?style=for-the-badge&logo=python&logoColor=white)](https://python.org)
 [![Flask](https://img.shields.io/badge/Flask-3.x-000000?style=for-the-badge&logo=flask)](https://flask.palletsprojects.com)
 [![Docker](https://img.shields.io/badge/Docker-Compose-2496ed?style=for-the-badge&logo=docker&logoColor=white)](https://docker.com)
 [![Cloudflare](https://img.shields.io/badge/Cloudflare-Tunnel-f38020?style=for-the-badge&logo=cloudflare&logoColor=white)](https://www.cloudflare.com/products/tunnel/)
@@ -91,7 +91,7 @@ open http://localhost
                        └────────────────┬───────────────┘
                                         │
                        ┌────────────────▼───────────────┐
-                       │  Python 3.9 + Gunicorn         │
+                       │  Python 3.13 + Gunicorn        │
                        │  (4 workers · non-root user)   │
                        │                                │
                        │  /generator   → UI             │
@@ -112,9 +112,10 @@ qrcodegen/
 ├── qr_generator.py          # Flask Blueprint — all generation logic
 ├── preview_app.py           # WSGI entry point (gunicorn target)
 ├── gunicorn_config.py       # 4 workers, 30s timeout, stdout logs
-├── Dockerfile               # python:3.9-slim, non-root appuser
+├── Dockerfile               # python:3.13-slim + uv, non-root appuser
 ├── docker-compose.yml       # single-service stack
-├── requirements.txt
+├── pyproject.toml           # dependencies + pytest config (managed by uv)
+├── uv.lock                  # locked dependency versions
 ├── tests/                   # pytest suite (helpers + routes)
 ├── docs/
 │   └── INTEGRATIONS.md      # URL shortener integration contract
@@ -304,12 +305,15 @@ curl -s -X POST https://qrcode.chrisrmiller.com/api/generate \
 
 ## 🛠️ Local Development
 
-```bash
-# Install deps
-pip install -r requirements.txt
+Requires [uv](https://docs.astral.sh/uv/) — it installs Python 3.13 and the
+locked dependencies automatically on first run; no manual venv needed.
 
+```bash
 # Run dev server (auto-reload, port 5050)
-python3 preview_app.py
+uv run python preview_app.py
+
+# Run tests
+uv run pytest
 ```
 
 Open [http://localhost:5050/generator](http://localhost:5050/generator).
@@ -320,7 +324,7 @@ Open [http://localhost:5050/generator](http://localhost:5050/generator).
 
 | Layer | Technology |
 |---|---|
-| Language | Python 3.9 |
+| Language | Python 3.13 |
 | Web framework | Flask 3.x |
 | QR generation | [qrcode](https://github.com/lincolnloop/python-qrcode) + Pillow |
 | 1D barcodes | [python-barcode](https://github.com/WhyNotHugo/python-barcode) |
