@@ -333,6 +333,22 @@ npx skills experimental_install
 npx skills add bmad-code-org/BMAD-METHOD --skill bmad
 ```
 
+To make the installed skills available to Claude Code as well, run:
+
+```bash
+node scripts/link-skills.mjs
+```
+
+This links `.claude/skills` to `.agents/skills`, using a junction on Windows
+and a relative directory symlink on macOS/Linux. Run it after installing
+skills in each checkout; rerunning it is safe, and skill updates are visible
+automatically through the link. An existing conflicting destination is
+preserved and reported as an error.
+
+uv uses the operating system's trusted certificates for dependency downloads,
+including BMad workflow scripts, to support development networks with custom
+root certificates while keeping TLS verification enabled.
+
 ---
 
 ## 📦 Tech Stack

@@ -16,6 +16,8 @@ dev = ["pytest>=7.0"]
 
 [tool.uv]
 package = false
+# Use the OS trust store for development networks with custom root certificates.
+system-certs = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
