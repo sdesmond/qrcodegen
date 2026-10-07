@@ -1,0 +1,4 @@
+{
+  "square": {"name": "Square", "dot": "square", "frame": "square", "ball": "square"},
+  "circle": {"name": "Circle", "dot": "circle", "frame": "circle", "ball": "circle"}
+}

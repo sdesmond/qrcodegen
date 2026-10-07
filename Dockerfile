@@ -13,6 +13,7 @@ COPY pyproject.toml uv.lock .python-version ./
 RUN uv sync --frozen --no-dev --no-install-project
 
 COPY qr_generator.py .
+COPY presets.json .
 COPY preview_app.py .
 COPY gunicorn_config.py .
 COPY templates/ ./templates/
