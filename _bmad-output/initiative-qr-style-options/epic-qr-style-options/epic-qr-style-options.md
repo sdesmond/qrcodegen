@@ -1,7 +1,7 @@
 ---
 type: epic
 title: "Users style their QR codes with safe, one-tap presets"
-parent: ""
+parent: initiative-qr-style-options
 covers: [CAP-1, CAP-2, CAP-3, CAP-4, CAP-5, CAP-6, CAP-7, CAP-8, CAP-9]
 after: []
 assignee: ""
@@ -37,15 +37,20 @@ The Flask generator, its single UI page and the POST routes. Not frames, stress-
 
 ## References
 
-- spec — _bmad-output/epic-qr-style-options/spec-qr-style-options/spec-qr-style-options.md, capabilities CAP-1 to CAP-9
-- spec — _bmad-output/epic-qr-style-options/spec-qr-style-options/presets.md, preset table and eye-pairing rules
-- spec — _bmad-output/epic-qr-style-options/spec-qr-style-options/scope.md, MoSCoW and platform notes
+- spec — _bmad-output/initiative-qr-style-options/epic-qr-style-options/spec-qr-style-options/spec-qr-style-options.md, capabilities CAP-1 to CAP-9
+- spec — _bmad-output/initiative-qr-style-options/epic-qr-style-options/spec-qr-style-options/presets.md, preset table and eye-pairing rules
+- spec — _bmad-output/initiative-qr-style-options/epic-qr-style-options/spec-qr-style-options/scope.md, MoSCoW and platform notes
+- ux — _bmad-output/initiative-qr-style-options/ux-qr-style-options/DESIGN.md and EXPERIENCE.md
 - constraint — CLAUDE.md, conventions (shared render helpers, whitelist validation, security headers, UI CSP `img-src 'self' data:`)
 
 ## Notes
 
-- Decision: loose work, one epic, no initiative (user, 2026-10-06).
-- Assumption: while the scan warning persists, Download stays enabled.
+- Decision: 2026-10-06 loose epic, no initiative; superseded 2026-10-07, the epic now sits under initiative-qr-style-options (user).
+- Decision: 2026-10-07 re-sliced against the UX spines into 14 entries; story 1 is the tracer bullet (user).
+- Decision: 2026-10-07 sequencing: 13 after 1; chains 2 -> 4 -> 5 -> 6 and 7 -> 3 -> 8 so no two stories edit the renderer or the single-file template at once; 14 before 10; 11 after 8 and 13 because 13 removes the Copy URL row that points at the route (user).
+- Decision: 2026-10-07 any change replaces the old code with the empty state instead of dimming it; spec CAP-6 wording is out of date (user, from the UX spines).
+- Decision: 2026-10-07 UX assumptions confirmed as written: 4:1 decodable-contrast threshold, Fix order contrast then EC then smaller logo, Download enabled while a scan warning is active (user).
+- Decision: 2026-10-07 zxing-cpp enters as a dev dependency in story 1 and becomes a runtime dependency in story 7 (user).
 - Assumption: the decoder is zxing-cpp; verify it decodes every styled preset before committing.
 - Assumption: the "20" saved-logo cap was meant as 20 logos, not presets.
 - Unknown: Fluid concave fillet radius, tuned later by the scan test.

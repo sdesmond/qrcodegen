@@ -1,0 +1,161 @@
+# tickets.toml for epic-qr-style-options. Order of tables is build order.
+
+[[entry]]
+id = 1
+type = "story"
+title = "Tracer: preset table and shared renderer with Square and Circle end to end"
+description = "Adds the shared preset JSON table and one per-module renderer for PNG and SVG, a preset parameter through the POST routes, and a minimal picker in the form, rendering Square and Circle, with zxing-cpp added as a dev dependency and a decode test helper so tests can decode renders."
+verify = "Selecting Circle in the UI and pressing Generate shows a circular-dot, circular-eye code that decodes on PNG and SVG; Square matches today's PNG output."
+covers = ["CAP-1"]
+after = []
+hitl = false
+risk = "medium"
+
+[[entry]]
+id = 13
+type = "story"
+title = "UI foundation: restructure, tokens and accessibility floor"
+description = "Reorders the form into Content, Code Settings, Colors, Logo and Style sections, removes the Output Format radio and Copy URL row, hides QR-only sections on barcode tabs, and adds the new color and focus tokens and the persistent status region. Its CAP-9 part is the removal of the Copy URL row, since the GET shim goes away in story 11."
+verify = "The page shows the new section order, barcode tabs show the QR-only hint instead of Colors, Logo and Style, and a keyboard-only pass reaches every control with a visible focus ring."
+covers = ["CAP-9"]
+after = [1]
+hitl = false
+risk = "medium"
+references = ["ux-qr-style-options/EXPERIENCE.md#information-architecture", "ux-qr-style-options/DESIGN.md#colors"]
+
+[[entry]]
+id = 2
+type = "story"
+title = "Rounded, Horizontal, Vertical and Bubble presets"
+description = "Adds four presets as rows in the table with their dot, frame and ball renderers."
+verify = "Each of the four presets renders on PNG and SVG and decodes at the default size."
+covers = ["CAP-1"]
+after = [1]
+hitl = false
+risk = "medium"
+
+[[entry]]
+id = 4
+type = "story"
+title = "Color, gradient and contrast warning"
+description = "Adds solid and gradient color with five directions including radial, applied to PNG and SVG on top of any preset, with the Colors section UI and an inline contrast warning with its own Fix button at a 4:1 threshold; the contrast clamp it adds is the first step of the scan check Fix in story 7."
+verify = "Any color setting renders with any preset on PNG and SVG; a pair below 4:1 shows the warning and Fix restores a passing pair."
+covers = ["CAP-3"]
+after = [1, 13, 2]
+hitl = false
+risk = "medium"
+
+[[entry]]
+id = 5
+type = "story"
+title = "Preset thumbnail strip"
+description = "Adds the radio-group strip of 72px client-side thumbnails of every preset, drawn from the shared table in the chosen color or gradient, with roving tabindex and a visible scrollbar."
+verify = "All presets show at all times, arrow keys select, and the thumbnails redraw when the color or gradient changes, with no request tied to the user's data."
+covers = ["CAP-2"]
+after = [2, 4]
+hitl = false
+risk = "low"
+
+[[entry]]
+id = 6
+type = "story"
+title = "Generate and Download state machine"
+description = "Makes Generate and Download strict inverses with aria-disabled semantics, removes the old code and shows the empty state on any change, adds the Generating, Generated and error states, and the floating Generate on narrow screens."
+verify = "Any input or preset change replaces the code with the empty state, enables Generate and disables Download; a fresh code does the reverse, and the status region announces each change once."
+covers = ["CAP-6"]
+after = [1, 13, 4, 5]
+hitl = false
+risk = "medium"
+notes = ["Replaces the spec's dimmed old code with the empty state; the spec's CAP-6 wording needs updating."]
+
+[[entry]]
+id = 7
+type = "story"
+title = "Scan check with persistent warning and one-click fix"
+description = "Promotes zxing-cpp to a runtime dependency and decodes the server's own PNG and SVG renders at generate time, with the warning banner, a Fix button that changes one control per Generate in the order contrast (reusing story 4), error correction, smaller logo, and a could-not-check state; the error-correction step is skipped when a logo already locks it to H (story 14)."
+verify = "A deliberately failing code shows the warning and a Fix button naming its change; applying it then pressing Generate produces a code that decodes and clears the warning; Download stays enabled with the warning glyph meanwhile."
+covers = ["CAP-5"]
+after = [1, 4, 6]
+hitl = true
+risk = "high"
+unknown = "Whether the Docker image can install the decoder under the dev machine's TLS interception; a person checks the build."
+notes = ["zxing-cpp is the assumed decoder; opencv-headless is the fallback."]
+
+[[entry]]
+id = 3
+type = "story"
+title = "Fluid preset"
+description = "Adds merged-blob dots with rounded convex corners and smoothed concave fillets, rounded-square eyes and a blob ball."
+verify = "A Fluid code has no square edges, decodes on PNG and SVG, and the fillet radius is fixed by the scan test."
+covers = ["CAP-1"]
+after = [1, 7]
+hitl = false
+risk = "high"
+unknown = "Fillet radius for concave joins is not yet known; tune it against the scan test."
+
+[[entry]]
+id = 8
+type = "story"
+title = "Logo rendering: fade, 1024 px and background switch"
+description = "Shrinks dots near the logo, renders the logo at about 1024 px (storage is story 10), and adds the background-behind-logo switch, for both PNG and SVG."
+verify = "A logo-bearing code decodes on PNG and SVG with the faded edge visible, and a 1 ft SVG at 30% logo width is not visibly soft."
+covers = ["CAP-4"]
+after = [1, 3, 7]
+hitl = false
+risk = "high"
+
+[[entry]]
+id = 14
+type = "story"
+title = "Logo UI: drop zone, inline errors and EC lock"
+description = "Adds the focusable drop zone with client pre-check and inline reason plus limit, keeps the previous logo on rejection, shows the 10-30 size slider only with a logo, and locks error correction to H with its reason shown in both places and the prior level restored on removal; the scan check Fix in story 7 skips its error-correction step while this lock is on."
+verify = "A rejected upload shows reason plus limit without blocking the form, and adding then removing a logo locks and then restores the error correction level."
+covers = ["CAP-4"]
+after = [8, 13]
+hitl = false
+risk = "medium"
+
+[[entry]]
+id = 9
+type = "story"
+title = "SVG print path, configurable MAX_SIZE and vector release check"
+description = "Keeps dots, eyes and frame vector in SVG at poster size with the logo at its stored resolution, and makes the PNG MAX_SIZE a configurable variable after checking workers and memory."
+verify = "A 1 ft SVG with a logo opens correctly in a vector editor, and raising MAX_SIZE by environment variable takes effect."
+covers = ["CAP-7"]
+after = [2, 3, 8]
+hitl = true
+risk = "medium"
+notes = ["A person opens the file in a vector editor."]
+
+[[entry]]
+id = 10
+type = "story"
+title = "Saved logo library"
+description = "Stores re-encoded logos in SQLite on a Docker volume, capped at 20 and env-configurable, with the saved-logo strip, opt-in save, inline delete confirm, and the fallback note when a deleted logo was in use."
+verify = "A saved logo can be picked in one action; deleting it clears references with a note; the 21st upload is refused with the cap shown."
+covers = ["CAP-8"]
+after = [14]
+hitl = false
+risk = "medium"
+
+[[entry]]
+id = 11
+type = "story"
+title = "Drop /api/qr and the Cloudflare tunnel notes"
+description = "Delivers the rest of CAP-9: removes the GET /api/qr route, its tests, and the tunnel, edge-cache and lnklab notes from the docs."
+verify = "GET /api/qr returns 404, the test suite passes, and no tunnel or lnklab references remain in CLAUDE.md or docs."
+covers = ["CAP-9"]
+after = [8, 13]
+hitl = false
+risk = "low"
+
+[[entry]]
+id = 12
+type = "story"
+title = "Refactor sweep"
+description = "Cleanup only: tidies the epic's code and takes review findings deferred during the epic."
+verify = "The test suite passes and no deferred finding remains open."
+covers = []
+after = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 14]
+hitl = false
+risk = "low"
