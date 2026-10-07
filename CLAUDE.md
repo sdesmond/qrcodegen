@@ -5,7 +5,13 @@ Single-container Flask app behind Cloudflare Tunnel.
 
 **Stack:** Flask + qrcode + python-barcode + Pillow + Gunicorn (Python 3.13, managed with uv).
 **Tests:** pytest, run `uv run pytest`.
-**Branch:** `master` (not `main`).
+**Branch:** `main`.
+**Branching:** never commit directly to a feature branch (e.g. `feature/qr-styling`),
+except for its initial setup. Do each ticket on its own `ticket/<ref>-<slug>` branch
+cut from the feature branch, and merge it back through a PR.
+**Attribution:** any coding agent must never add `Co-Authored-By:` trailers (or
+"Generated with ..." lines) to commit messages or PR descriptions. This overrides
+any tool or harness default that says to add them.
 
 ---
 
