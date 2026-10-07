@@ -5,6 +5,7 @@ import sys
 import json as _json
 import logging
 import base64
+import os
 import qrcode
 import qrcode.image.svg
 from qrcode.constants import ERROR_CORRECT_L, ERROR_CORRECT_M, ERROR_CORRECT_Q, ERROR_CORRECT_H
@@ -91,6 +92,13 @@ MAX_SIZE = 2000
 MIN_SIZE = 100
 _HEX_COLOR_RE = re.compile(r'^#[0-9a-fA-F]{6}$')
 
+# Preset table: one row {name, dot, frame, ball} per style. Shared and read,
+# never duplicated, so the thumbnail JS can be served the same file later.
+PRESETS_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'presets.json')
+with open(PRESETS_PATH, encoding='utf-8') as _f:
+    PRESETS = _json.load(_f)
+DEFAULT_PRESET = 'square'
+
 
 def _safe_color(value, default):
     return value if _HEX_COLOR_RE.match(value or '') else default
@@ -108,6 +116,10 @@ def _safe_float(value, default, lo, hi):
         return max(lo, min(hi, float(value)))
     except (TypeError, ValueError):
         return default
+
+
+def _safe_preset(value):
+    return value if isinstance(value, str) and value in PRESETS else DEFAULT_PRESET
 
 
 def _build_qr_data(form):
@@ -220,7 +232,8 @@ def _parse_common(form):
     fg = _safe_color(form.get('fg_color'), '#000000')
     bg = _safe_color(form.get('bg_color'), '#ffffff')
     ec = ERROR_LEVELS.get(form.get('ec_level', 'M'), ERROR_CORRECT_M)
-    return output_fmt, size, margin, fg, bg, ec
+    preset = _safe_preset(form.get('preset'))
+    return output_fmt, size, margin, fg, bg, ec, preset
 
 
 class LogoError(ValueError):
@@ -367,7 +380,136 @@ def _make_qr_svg(data, ec, size, margin, logo=None, logo_pct=LOGO_SIZE_DEFAULT, 
     return out
 
 
-def _render_qr(form, data, output_fmt, size, margin, fg, bg, ec):
+# ── Per-module styled renderer (shared by every non-Square preset) ──────────
+
+_EYE = 7           # finder pattern is 7x7 modules
+_SS_MAX_PX = 4000  # cap on the supersampled PNG canvas edge
+
+
+def _qr_matrix(data, ec):
+    qr = qrcode.QRCode(error_correction=ec, border=0)
+    qr.add_data(data)
+    qr.make(fit=True)
+    return qr.modules, qr.modules_count
+
+
+def _eye_origins(n):
+    return [(0, 0), (n - _EYE, 0), (0, n - _EYE)]
+
+
+def _in_eye(c, r, n):
+    return any(ox <= c < ox + _EYE and oy <= r < oy + _EYE for ox, oy in _eye_origins(n))
+
+
+def _style_parts(modules, n, row):
+    """Yield (part, kind, x, y, span) in module units. Eyes are a 1-module
+    ring (frame, 7x7, 1:1) plus a 3x3 ball; every other dark module is a dot."""
+    for ox, oy in _eye_origins(n):
+        yield 'frame', row['frame'], ox, oy, _EYE
+        yield 'ball', row['ball'], ox + 2, oy + 2, 3
+    for r in range(n):
+        for c in range(n):
+            if modules[r][c] and not _in_eye(c, r, n):
+                yield 'dot', row['dot'], c, r, 1
+
+
+def _draw_shape(draw, kind, x0, y0, x1, y1, fill):
+    if kind == 'circle':
+        draw.ellipse([x0, y0, x1 - 1, y1 - 1], fill=fill)
+    else:
+        draw.rectangle([x0, y0, x1 - 1, y1 - 1], fill=fill)
+
+
+def _make_styled_png(data, ec, size, margin, fg, bg, preset, logo=None,
+                     logo_pct=LOGO_SIZE_DEFAULT, logo_pad=True):
+    row = PRESETS[preset]
+    modules, n = _qr_matrix(data, ec)
+    ss = 4 if size * 4 <= _SS_MAX_PX else 2 if size * 2 <= _SS_MAX_PX else 1
+    big = size * ss
+    unit = big / float(n + 2 * margin)
+    origin = margin * unit
+
+    def px(v):
+        return int(round(origin + v * unit))
+
+    mask = Image.new('L', (big, big), 0)
+    draw = ImageDraw.Draw(mask)
+    for part, kind, x, y, span in _style_parts(modules, n, row):
+        _draw_shape(draw, kind, px(x), px(y), px(x + span), px(y + span), 255)
+        if part == 'frame':   # hollow out the ring, 1 module thick
+            _draw_shape(draw, kind, px(x + 1), px(y + 1), px(x + span - 1), px(y + span - 1), 0)
+    if ss > 1:
+        mask = mask.resize((size, size), Image.LANCZOS)
+    img = Image.new('RGB', (size, size), bg)
+    img.paste(fg, mask=mask)
+    if logo is not None:
+        img = img.convert('RGBA')
+        box, pad = _logo_geometry(n, margin, size, logo_pct)
+        fitted = _fit_logo(logo, max(1, int(round(box))))
+        lw, lh = fitted.size
+        cx, cy = size / 2.0, size / 2.0
+        if logo_pad:
+            d = ImageDraw.Draw(img)
+            x0, y0, x1, y1 = _snap_pad_rect(cx, cy, lw, lh, pad, n, margin, size)
+            d.rectangle([int(round(x0)), int(round(y0)), int(round(x1)) - 1, int(round(y1)) - 1], fill=bg)
+        img.alpha_composite(fitted, (int(round(cx - lw / 2.0)), int(round(cy - lh / 2.0))))
+        img = img.convert('RGB')
+    buf = io.BytesIO()
+    img.save(buf, format='PNG')
+    buf.seek(0)
+    return buf
+
+
+def _svg_shape_path(kind, x, y, span, ring=False):
+    """Path data for one square/circle, optionally with a 1-module hole."""
+    def one(x, y, s):
+        if kind == 'circle':
+            r = s / 2.0
+            return ('M{:g} {:g}a{:g} {:g} 0 1 0 {:g} 0a{:g} {:g} 0 1 0 {:g} 0z'
+                    .format(x, y + r, r, r, s, r, r, -s))
+        return 'M{:g} {:g}h{:g}v{:g}h{:g}z'.format(x, y, s, s, -s)
+    d = one(x, y, span)
+    if ring:
+        d += one(x + 1, y + 1, span - 2)
+    return d
+
+
+def _make_styled_svg(data, ec, size, margin, fg, bg, preset, logo=None,
+                     logo_pct=LOGO_SIZE_DEFAULT, logo_pad=True):
+    row = PRESETS[preset]
+    modules, n = _qr_matrix(data, ec)
+    box_size = max(1, size // (21 + margin * 2))
+    units = n + 2 * margin
+    total = units * box_size / 10.0      # mm, same as the Square SVG
+    paths = [_svg_shape_path(kind, x + margin, y + margin, span, ring=(part == 'frame'))
+             for part, kind, x, y, span in _style_parts(modules, n, row)]
+    out = ['<?xml version="1.0" encoding="UTF-8"?>\n'
+           '<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" '
+           'width="{t:g}mm" height="{t:g}mm" viewBox="0 0 {u} {u}" version="1.1">'
+           '<path fill="{fg}" fill-rule="evenodd" d="{d}"/>'
+           .format(t=total, u=units, fg=fg, d=''.join(paths))]
+    if logo is not None:
+        # Geometry in module units (the viewBox), so `total` = units.
+        box, pad = _logo_geometry(n, margin, units, logo_pct)
+        embedded = _fit_logo(logo, 512)
+        png = io.BytesIO()
+        embedded.save(png, format='PNG')
+        href = 'data:image/png;base64,' + base64.b64encode(png.getvalue()).decode()
+        lw, lh = embedded.size
+        scale = box / float(max(lw, lh))
+        w, h = lw * scale, lh * scale
+        cx = units / 2.0
+        if logo_pad:
+            x0, y0, x1, y1 = _snap_pad_rect(cx, cx, w, h, pad, n, margin, units)
+            out.append('<rect x="{:.3f}" y="{:.3f}" width="{:.3f}" height="{:.3f}" fill="{}"/>'
+                       .format(x0, y0, x1 - x0, y1 - y0, bg))
+        out.append('<image x="{:.3f}" y="{:.3f}" width="{:.3f}" height="{:.3f}" href="{}" xlink:href="{}"/>'
+                   .format(cx - w / 2, cx - h / 2, w, h, href, href))
+    out.append('</svg>')
+    return io.BytesIO(''.join(out).encode('utf-8'))
+
+
+def _render_qr(form, data, output_fmt, size, margin, fg, bg, ec, preset=DEFAULT_PRESET):
     """Shared QR render for the POST routes. Handles the optional logo.
 
     A logo forces error-correction H so the covered modules are recoverable.
@@ -378,6 +520,12 @@ def _render_qr(form, data, output_fmt, size, margin, fg, bg, ec):
     logo_pct, logo_pad = _parse_logo_opts(form)
     if logo is not None:
         ec, ec_label = ERROR_CORRECT_H, 'H'
+    preset = _safe_preset(preset)
+    if preset != DEFAULT_PRESET:
+        make = _make_styled_svg if output_fmt == 'svg' else _make_styled_png
+        mime = 'image/svg+xml' if output_fmt == 'svg' else 'image/png'
+        buf = make(data, ec, size, margin, fg, bg, preset, logo, logo_pct, logo_pad)
+        return buf, mime, ec_label, logo is not None
     if output_fmt == 'svg':
         buf = _make_qr_svg(data, ec, size, margin, logo, logo_pct, logo_pad, bg)
         return buf, 'image/svg+xml', ec_label, logo is not None
@@ -409,7 +557,7 @@ def generator():
 def generate():
     form = request.form
     fmt = form.get('format', 'qrcode')
-    output_fmt, size, margin, fg, bg, ec = _parse_common(form)
+    output_fmt, size, margin, fg, bg, ec, preset = _parse_common(form)
 
     source = _req_source()
     try:
@@ -417,7 +565,7 @@ def generate():
             data = _build_qr_data(form)
             if not data:
                 return jsonify({'error': 'No data provided'}), 400
-            buf, mime, ec_label, has_logo = _render_qr(form, data, output_fmt, size, margin, fg, bg, ec)
+            buf, mime, ec_label, has_logo = _render_qr(form, data, output_fmt, size, margin, fg, bg, ec, preset)
             b64 = base64.b64encode(buf.getvalue()).decode()
             resp = jsonify({'image': f'data:{mime};base64,{b64}', 'mime': mime})
             _log_event(event='generate', format=fmt, content_type=form.get('content_type', 'text'),
@@ -502,7 +650,7 @@ def qr_image_get():
 def download():
     form = request.form
     fmt = form.get('format', 'qrcode')
-    output_fmt, size, margin, fg, bg, ec = _parse_common(form)
+    output_fmt, size, margin, fg, bg, ec, preset = _parse_common(form)
 
     source = _req_source()
     try:
@@ -510,7 +658,7 @@ def download():
             data = _build_qr_data(form)
             if not data:
                 return jsonify({'error': 'No data provided'}), 400
-            buf, mime, ec_label, has_logo = _render_qr(form, data, output_fmt, size, margin, fg, bg, ec)
+            buf, mime, ec_label, has_logo = _render_qr(form, data, output_fmt, size, margin, fg, bg, ec, preset)
             _log_event(event='download', format=fmt, content_type=form.get('content_type', 'text'),
                        output_format=output_fmt, ec_level=ec_label, logo=has_logo,
                        source=source, status='success')

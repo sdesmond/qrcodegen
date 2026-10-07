@@ -925,6 +925,15 @@
       </div>
     </div>
 
+    <!-- ══ Style preset ══ -->
+    <div id="preset-options">
+    <p class="section-title">Style</p>
+    <div class="output-fmt-row">
+      <label class="fmt-opt"><input type="radio" name="preset" value="square" checked> Square</label>
+      <label class="fmt-opt"><input type="radio" name="preset" value="circle"> Circle</label>
+    </div>
+    </div>
+
     <!-- ══ Output format ══ -->
     <p class="section-title">Output Format</p>
     <div class="output-fmt-row">
@@ -1006,6 +1015,7 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
     document.getElementById('barcode-section').classList.toggle('hidden', isQR);
     document.getElementById('barcode-options').classList.toggle('hidden', isQR);
     document.getElementById('color-options').classList.toggle('hidden', !isQR);
+    document.getElementById('preset-options').classList.toggle('hidden', !isQR);
   });
 });
 
@@ -1118,6 +1128,9 @@ function collectFormData() {
   fd.append('margin', document.querySelector('[name=margin]').value);
   fd.append('fg_color', document.getElementById('fg-input').value);
   fd.append('bg_color', document.getElementById('bg-input').value);
+
+  const presetEl = document.querySelector('[name=preset]:checked');
+  fd.append('preset', presetEl ? presetEl.value : 'square');
 
   const ofmt = document.querySelector('[name=output_format]:checked');
   fd.append('output_format', ofmt ? ofmt.value : 'png');
